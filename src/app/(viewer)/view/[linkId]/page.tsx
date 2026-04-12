@@ -543,7 +543,7 @@ function GateScreen({
           {brandName && (
             <p className="text-xs text-muted mb-2">Shared via {brandName}</p>
           )}
-          <p className="text-xs text-muted">Secured by DocVault</p>
+          <p className="text-xs text-muted">Secured by OpenDoc</p>
         </div>
       </div>
     </div>

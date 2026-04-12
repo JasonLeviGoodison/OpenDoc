@@ -1,26 +1,29 @@
 @import "tailwindcss";
 
 /*
- * Design tokens — OKLCH palette, warm-tinted neutrals
- * Brand hue: ~70 (amber/gold) — evokes trust, security, premium
- * Neutrals tinted toward brand hue for subconscious cohesion
+ * Design tokens — refined dark with cool blue-gray tint
+ * Accent: emerald — conveys growth, trust, premium
+ * Surfaces: clear elevation hierarchy (not flat black)
  */
+html {
+  color-scheme: dark;
+}
+
 :root {
-  --background: oklch(11% 0.006 70);
-  --foreground: oklch(93% 0.005 70);
-  --card: oklch(15% 0.006 70);
-  --card-hover: oklch(18% 0.008 70);
-  --border: oklch(24% 0.008 70);
-  --border-hover: oklch(30% 0.01 70);
-  --muted: oklch(50% 0.01 70);
-  --muted-foreground: oklch(65% 0.008 70);
-  --accent: oklch(70% 0.14 70);
-  --accent-hover: oklch(76% 0.12 70);
-  --accent-muted: oklch(18% 0.03 70);
-  --success: oklch(68% 0.14 150);
-  --warning: oklch(75% 0.13 80);
-  --danger: oklch(60% 0.18 25);
-  --sidebar-width: 260px;
+  --background: #0c0d0f;
+  --foreground: #f0f0f2;
+  --card: #141518;
+  --card-hover: #1a1b1f;
+  --border: #25262b;
+  --border-hover: #32343a;
+  --muted: #5c5e66;
+  --muted-foreground: #94959e;
+  --accent: #34d399;
+  --accent-hover: #5eead4;
+  --accent-muted: rgba(52, 211, 153, 0.08);
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
 }
 
 @theme inline {
@@ -54,12 +57,12 @@ body {
   font-kerning: normal;
 }
 
-/* Light-on-dark needs more breathing room */
+/* Light-on-dark needs more leading */
 p, li, td {
   line-height: 1.65;
 }
 
-/* Tabular numbers in data contexts */
+/* Tabular numbers for data */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
@@ -83,9 +86,9 @@ p, li, td {
   background: var(--border-hover);
 }
 
-/* Selection — brand tinted */
+/* Selection */
 ::selection {
-  background: oklch(70% 0.14 70 / 0.3);
+  background: rgba(52, 211, 153, 0.25);
   color: white;
 }
 
@@ -95,7 +98,7 @@ p, li, td {
   outline-offset: 2px;
 }
 
-/* Entrance animation — used sparingly, only for page load */
+/* Page entrance */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }

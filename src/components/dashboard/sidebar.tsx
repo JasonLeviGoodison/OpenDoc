@@ -43,9 +43,9 @@ export function Sidebar() {
       {/* Logo */}
       <div className="h-16 flex items-center px-5 border-b border-border">
         <Link href="/dashboard" className="flex items-center gap-3">
-          <span className="text-accent font-extrabold text-xl tracking-tight">V</span>
+          <span className="text-accent font-extrabold text-xl tracking-tight">O</span>
           {!collapsed && (
-            <span className="font-bold text-foreground tracking-tight">DocVault</span>
+            <span className="font-bold text-foreground tracking-tight">OpenDoc</span>
           )}
         </Link>
       </div>
