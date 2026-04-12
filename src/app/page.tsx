@@ -246,7 +246,7 @@ export default function LandingPage() {
           </Link>
           <div className="flex items-center gap-3">
             <a
-              href="https://github.com/jasongoodison/opendoc"
+              href="https://github.com/JasonLeviGoodison/OpenDoc"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -290,7 +290,7 @@ export default function LandingPage() {
                 </Button>
               </Link>
               <a
-                href="https://github.com/jasongoodison/opendoc"
+                href="https://github.com/JasonLeviGoodison/OpenDoc"
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -604,7 +604,7 @@ export default function LandingPage() {
           </p>
           <div className="flex items-center gap-3 flex-wrap">
             <a
-              href="https://github.com/jasongoodison/opendoc"
+              href="https://github.com/JasonLeviGoodison/OpenDoc"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -632,7 +632,7 @@ export default function LandingPage() {
               <span className="font-bold text-foreground text-sm tracking-tight">OpenDoc</span>
             </div>
             <a
-              href="https://github.com/jasongoodison/opendoc"
+              href="https://github.com/JasonLeviGoodison/OpenDoc"
               target="_blank"
               rel="noopener noreferrer"
               className="text-muted hover:text-foreground transition-colors"
