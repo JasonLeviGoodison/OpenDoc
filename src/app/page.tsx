@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import {
   BarChart3,
@@ -309,36 +310,16 @@ export default function LandingPage() {
           </div>
 
           {/* Product preview */}
-          <div className="hidden lg:block animate-fade-in">
-            <div className="bg-card border border-border rounded-xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">Series A Pitch Deck</p>
-                  <p className="text-xs text-muted mt-0.5">24 pages &middot; PDF &middot; Shared 3 days ago</p>
-                </div>
-                <span className="text-xs font-medium text-success">Active</span>
-              </div>
-              <div className="px-5 py-4 space-y-3">
-                {[
-                  { name: 'sarah@sequoia.com', pages: '24/24', time: '12m 34s', pct: '100%' },
-                  { name: 'mike@a16z.com', pages: '18/24', time: '8m 12s', pct: '75%' },
-                  { name: 'jen@greylock.com', pages: '24/24', time: '15m 02s', pct: '100%' },
-                  { name: 'david@accel.com', pages: '6/24', time: '2m 45s', pct: '25%' },
-                ].map((v) => (
-                  <div key={v.name} className="flex items-center justify-between text-sm">
-                    <span className="text-foreground font-medium">{v.name}</span>
-                    <div className="flex items-center gap-6 text-xs text-muted tabular-nums">
-                      <span>{v.pages} pages</span>
-                      <span>{v.time}</span>
-                      <span className={v.pct === '100%' ? 'text-success' : 'text-muted-foreground'}>{v.pct}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="px-5 py-3 border-t border-border flex items-center justify-between text-xs text-muted">
-                <span>4 unique visitors</span>
-                <span>Avg. 9m 38s</span>
-              </div>
+          <div className="hidden animate-fade-in lg:flex lg:justify-end">
+            <div className="relative max-w-2xl rounded-2xl border border-border bg-card/40 p-2 shadow-2xl ring-1 ring-black/20">
+              <Image
+                src="/hero-preview.png"
+                alt="Screenshot of OpenDoc analytics card"
+                width={2048}
+                height={532}
+                className="h-auto w-full rounded-xl border border-border object-cover"
+                priority
+              />
             </div>
           </div>
         </div>
