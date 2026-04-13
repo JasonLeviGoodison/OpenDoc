@@ -77,15 +77,10 @@ export default function DashboardPage() {
       <div className="p-8 space-y-8">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-border rounded-xl overflow-hidden border border-border">
           <div className="bg-card px-5 py-4">
-            <StatsCard label="Total Views" value={totalViews} change="+12% from last week" changeType="positive" />
+            <StatsCard label="Total Views" value={totalViews} />
           </div>
           <div className="bg-card px-5 py-4">
-            <StatsCard
-              label="Unique Visitors"
-              value={uniqueVisitors}
-              change="+8% from last week"
-              changeType="positive"
-            />
+            <StatsCard label="Unique Visitors" value={uniqueVisitors} />
           </div>
           <div className="bg-card px-5 py-4">
             <StatsCard
