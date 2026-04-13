@@ -5,7 +5,6 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { eq } from 'drizzle-orm';
-import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 import { db } from '@/db';
 import { documents } from '@/db/schema';
@@ -20,6 +19,9 @@ import {
 } from '@/lib/viewer';
 
 const execFileAsync = promisify(execFile);
+let pdfJsGetDocumentPromise: Promise<
+  typeof import('pdfjs-dist/legacy/build/pdf.mjs').getDocument
+> | null = null;
 const SOFFICE_CANDIDATES = [
   process.env.OPENDOC_SOFFICE_PATH,
   process.env.SOFFICE_PATH,
@@ -28,6 +30,107 @@ const SOFFICE_CANDIDATES = [
   '/usr/local/bin/soffice',
   'soffice',
 ].filter((value): value is string => Boolean(value));
+
+class PdfJsDOMMatrixStub {
+  a = 1;
+  b = 0;
+  c = 0;
+  d = 1;
+  e = 0;
+  f = 0;
+  is2D = true;
+
+  constructor(init?: number[] | string) {
+    if (Array.isArray(init)) {
+      const [a = 1, b = 0, c = 0, d = 1, e = 0, f = 0] = init;
+      this.a = a;
+      this.b = b;
+      this.c = c;
+      this.d = d;
+      this.e = e;
+      this.f = f;
+    }
+  }
+
+  invertSelf() {
+    return this;
+  }
+
+  multiplySelf() {
+    return this;
+  }
+
+  preMultiplySelf() {
+    return this;
+  }
+
+  scale(scaleX = 1, scaleY = scaleX) {
+    this.a *= scaleX;
+    this.d *= scaleY;
+    return this;
+  }
+
+  translate(translateX = 0, translateY = 0) {
+    this.e += translateX;
+    this.f += translateY;
+    return this;
+  }
+}
+
+class PdfJsImageDataStub {
+  colorSpace: PredefinedColorSpace = 'srgb';
+  data: Uint8ClampedArray;
+  height: number;
+  width: number;
+
+  constructor(widthOrData: number | Uint8ClampedArray, heightOrWidth?: number, maybeHeight?: number) {
+    if (widthOrData instanceof Uint8ClampedArray) {
+      this.data = widthOrData;
+      this.width = heightOrWidth ?? 0;
+      this.height = maybeHeight ?? 0;
+      return;
+    }
+
+    this.width = widthOrData;
+    this.height = heightOrWidth ?? 0;
+    this.data = new Uint8ClampedArray(this.width * this.height * 4);
+  }
+}
+
+class PdfJsPath2DStub {
+  addPath() {}
+  bezierCurveTo() {}
+  closePath() {}
+  lineTo() {}
+  moveTo() {}
+  rect() {}
+}
+
+function ensurePdfJsNodeGlobals() {
+  if (!globalThis.DOMMatrix) {
+    globalThis.DOMMatrix = PdfJsDOMMatrixStub as unknown as typeof DOMMatrix;
+  }
+
+  if (!globalThis.ImageData) {
+    globalThis.ImageData = PdfJsImageDataStub as unknown as typeof ImageData;
+  }
+
+  if (!globalThis.Path2D) {
+    globalThis.Path2D = PdfJsPath2DStub as unknown as typeof Path2D;
+  }
+}
+
+async function getPdfJsGetDocument() {
+  ensurePdfJsNodeGlobals();
+
+  if (!pdfJsGetDocumentPromise) {
+    pdfJsGetDocumentPromise = import('pdfjs-dist/legacy/build/pdf.mjs').then(
+      ({ getDocument }) => getDocument,
+    );
+  }
+
+  return await pdfJsGetDocumentPromise;
+}
 
 function getPreviewFailureMessage(error: unknown) {
   if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
@@ -86,6 +189,7 @@ async function uploadPreviewPdf(objectPath: string, pdfBuffer: Buffer) {
 }
 
 async function getPdfPageCount(pdfBuffer: Buffer) {
+  const getDocument = await getPdfJsGetDocument();
   const loadingTask = getDocument({
     data: new Uint8Array(pdfBuffer),
   });
@@ -215,8 +319,4 @@ export async function ensureDocumentPreview(documentId: string) {
       previewStatus: 'failed',
     });
   }
-}
-
-export function getInlinePreviewFilename(originalFilename: string) {
-  return buildPreviewFilename(originalFilename);
 }

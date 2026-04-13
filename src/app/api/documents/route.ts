@@ -3,7 +3,6 @@ import { db } from '@/db';
 import { documents } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { serializeDocument } from '@/lib/serializers';
-import { ensureDocumentPreview } from '@/lib/server/document-preview';
 import { ensureCurrentUserRecord, requireUserId, toErrorResponse } from '@/lib/server/auth';
 import { parseDocumentCreateBody } from '@/lib/validators';
 import { getInitialDocumentPreviewState } from '@/lib/viewer';
@@ -54,6 +53,7 @@ export async function POST(req: NextRequest) {
 
     after(async () => {
       try {
+        const { ensureDocumentPreview } = await import('@/lib/server/document-preview');
         await ensureDocumentPreview(row.id);
       } catch (previewError) {
         console.error('Failed to generate document preview', previewError);

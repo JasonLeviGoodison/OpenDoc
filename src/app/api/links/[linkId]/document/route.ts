@@ -5,11 +5,11 @@ import { db } from '@/db';
 import { documentLinks, documents, spaceDocuments } from '@/db/schema';
 import { buildContentDisposition, VIEWER_COOKIE_NAME } from '@/lib/http';
 import { getLinkAvailability } from '@/lib/link-access';
-import { getInlinePreviewFilename } from '@/lib/server/document-preview';
 import { RouteError, toErrorResponse } from '@/lib/server/auth';
 import { verifySignedToken } from '@/lib/security';
 import { resolveStoredFileUrl } from '@/lib/storage';
 import {
+  buildPreviewFilename,
   getInlineViewerFileType,
   isInlinePreviewFailed,
   isInlinePreviewPending,
@@ -123,7 +123,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ link
         }
 
         storageObjectPath = document.previewFileUrl;
-        inlineFilename = getInlinePreviewFilename(document.originalFilename);
+        inlineFilename = buildPreviewFilename(document.originalFilename);
       }
     }
 
