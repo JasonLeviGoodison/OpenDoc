@@ -22,11 +22,22 @@ import { Input } from '@/components/ui/input';
 import { apiFetchJson } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import {
-  buildOfficeEmbedUrl,
   buildViewerDocumentPath,
-  isOfficeEmbedViewerFile,
+  isDocumentViewerFile,
+  isPresentationViewerFile,
   isPdfViewerFile,
+  isRenderableDocumentViewerFile,
+  isRenderablePresentationViewerFile,
+  isSpreadsheetViewerFile,
 } from '@/lib/viewer';
+
+function ViewerPaneLoading() {
+  return (
+    <div className="flex h-full items-center justify-center p-8">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent" />
+    </div>
+  );
+}
 
 const PdfDocumentViewer = dynamic(
   () =>
@@ -34,11 +45,40 @@ const PdfDocumentViewer = dynamic(
       default: module.PdfDocumentViewer,
     })),
   {
-    loading: () => (
-      <div className="flex h-full items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent" />
-      </div>
-    ),
+    loading: ViewerPaneLoading,
+    ssr: false,
+  },
+);
+
+const SpreadsheetDocumentViewer = dynamic(
+  () =>
+    import('@/components/viewer/spreadsheet-document-viewer').then((module) => ({
+      default: module.SpreadsheetDocumentViewer,
+    })),
+  {
+    loading: ViewerPaneLoading,
+    ssr: false,
+  },
+);
+
+const PresentationDocumentViewer = dynamic(
+  () =>
+    import('@/components/viewer/presentation-document-viewer').then((module) => ({
+      default: module.PresentationDocumentViewer,
+    })),
+  {
+    loading: ViewerPaneLoading,
+    ssr: false,
+  },
+);
+
+const DocxDocumentViewer = dynamic(
+  () =>
+    import('@/components/viewer/docx-document-viewer').then((module) => ({
+      default: module.DocxDocumentViewer,
+    })),
+  {
+    loading: ViewerPaneLoading,
     ssr: false,
   },
 );
@@ -132,8 +172,16 @@ export default function ViewerPage() {
     currentDocuments.find((document) => document.id === currentDocumentId) ?? currentDocuments[0] ?? null;
   const totalPages = currentDocument?.page_count ?? 1;
   const isPdfDocument = isPdfViewerFile(currentDocument?.file_type);
-  const isOfficePreviewDocument = isOfficeEmbedViewerFile(currentDocument?.file_type);
-  const viewerOrigin = typeof window === 'undefined' ? null : window.location.origin;
+  const isSpreadsheetDocument = isSpreadsheetViewerFile(currentDocument?.file_type);
+  const isPresentationDocument = isPresentationViewerFile(currentDocument?.file_type);
+  const isRenderablePresentationDocument = isRenderablePresentationViewerFile(currentDocument?.file_type);
+  const isDocumentPreviewDocument = isDocumentViewerFile(currentDocument?.file_type);
+  const isRenderableDocumentPreview = isRenderableDocumentViewerFile(currentDocument?.file_type);
+  const supportsZoom =
+    isPdfDocument ||
+    isSpreadsheetDocument ||
+    (isPresentationDocument && isRenderablePresentationDocument) ||
+    (isDocumentPreviewDocument && isRenderableDocumentPreview);
 
   const resetTrackedVisitState = useCallback(() => {
     pageStartTimeRef.current = null;
@@ -487,19 +535,10 @@ export default function ViewerPage() {
 
   const documentSource =
     gate === 'viewer' && currentDocument
-      ? (() => {
-          const documentPath = buildViewerDocumentPath({
-            documentId: currentDocument.id,
-            linkId,
-            token: isOfficePreviewDocument ? viewerToken : null,
-          });
-
-          if (isOfficePreviewDocument && viewerOrigin) {
-            return buildOfficeEmbedUrl(`${viewerOrigin}${documentPath}`);
-          }
-
-          return documentPath;
-        })()
+      ? buildViewerDocumentPath({
+          documentId: currentDocument.id,
+          linkId,
+        })
       : null;
 
   const downloadSource =
@@ -514,6 +553,17 @@ export default function ViewerPage() {
   const watermarkLabel = [email || 'CONFIDENTIAL', viewerIp || 'IP HIDDEN', new Date().toLocaleString()].join(
     ' · ',
   );
+  const previewStatusLabel = isSpreadsheetDocument
+    ? 'Workbook preview · page analytics unavailable'
+    : isPresentationDocument
+      ? isRenderablePresentationDocument
+        ? 'Slide preview · page analytics unavailable'
+        : 'Legacy .ppt preview unavailable'
+      : isDocumentPreviewDocument
+        ? isRenderableDocumentPreview
+          ? 'Document preview · page analytics unavailable'
+          : 'Legacy .doc preview unavailable'
+        : 'Secure preview';
 
   if (gate === 'loading') {
     return (
@@ -673,30 +723,30 @@ export default function ViewerPage() {
           ) : (
             <div className="flex items-center gap-2 bg-background rounded-lg border border-border px-3 py-1.5">
               <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                {isOfficePreviewDocument
-                  ? `${currentDocument.file_type} preview · page analytics unavailable`
-                  : 'Secure preview'}
+                {previewStatusLabel}
               </span>
             </div>
           )}
 
-          <div className="flex items-center gap-1 bg-background rounded-lg border border-border px-2 py-1">
-            <button
-              onClick={() => setZoom((value) => Math.max(value - 0.25, 0.5))}
-              className="p-1 text-muted-foreground hover:text-foreground cursor-pointer"
-            >
-              <ZoomOut size={16} />
-            </button>
-            <span className="text-xs text-muted-foreground w-12 text-center">
-              {Math.round(zoom * 100)}%
-            </span>
-            <button
-              onClick={() => setZoom((value) => Math.min(value + 0.25, 3))}
-              className="p-1 text-muted-foreground hover:text-foreground cursor-pointer"
-            >
-              <ZoomIn size={16} />
-            </button>
-          </div>
+          {supportsZoom ? (
+            <div className="flex items-center gap-1 bg-background rounded-lg border border-border px-2 py-1">
+              <button
+                onClick={() => setZoom((value) => Math.max(value - 0.25, 0.5))}
+                className="p-1 text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                <ZoomOut size={16} />
+              </button>
+              <span className="text-xs text-muted-foreground w-12 text-center">
+                {Math.round(zoom * 100)}%
+              </span>
+              <button
+                onClick={() => setZoom((value) => Math.min(value + 0.25, 3))}
+                className="p-1 text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                <ZoomIn size={16} />
+              </button>
+            </div>
+          ) : null}
 
           {linkData?.allow_download && downloadSource && (
             <a
@@ -764,22 +814,38 @@ export default function ViewerPage() {
                 zoom={zoom}
                 key={currentDocument.id}
               />
+            ) : isSpreadsheetDocument ? (
+              <SpreadsheetDocumentViewer
+                fileUrl={documentSource}
+                viewerToken={viewerToken}
+                zoom={zoom}
+                key={currentDocument.id}
+              />
+            ) : isPresentationDocument ? (
+              <PresentationDocumentViewer
+                fileType={currentDocument.file_type}
+                fileUrl={documentSource}
+                viewerToken={viewerToken}
+                zoom={zoom}
+                key={currentDocument.id}
+              />
+            ) : isDocumentPreviewDocument ? (
+              <DocxDocumentViewer
+                fileType={currentDocument.file_type}
+                fileUrl={documentSource}
+                viewerToken={viewerToken}
+                zoom={zoom}
+                key={currentDocument.id}
+              />
             ) : (
-              <div className="flex h-full items-start justify-center overflow-auto p-8">
-                <div
-                  className="relative rounded-lg bg-white shadow-2xl"
-                  style={{ transform: `scale(${zoom})`, transformOrigin: 'top center' }}
-                >
-                  <iframe
-                    src={documentSource}
-                    style={{
-                      border: 'none',
-                      height: 'calc(100vh - 12rem)',
-                      minHeight: '640px',
-                      width: 'min(1100px, 85vw)',
-                    }}
-                    title={currentDocument.name}
-                  />
+              <div className="flex h-full items-center justify-center p-8">
+                <div className="flex min-h-[420px] w-[min(780px,85vw)] items-center justify-center rounded-lg border border-border bg-card px-8 py-12 text-center">
+                  <div className="max-w-md space-y-3">
+                    <p className="text-base font-semibold text-foreground">Preview unavailable</p>
+                    <p className="text-sm text-muted-foreground">
+                      This file type cannot be rendered in the secure in-browser preview in the current build.
+                    </p>
+                  </div>
                 </div>
               </div>
             )
@@ -788,11 +854,13 @@ export default function ViewerPage() {
               <div className="flex min-h-[420px] w-[min(780px,85vw)] items-center justify-center rounded-lg border border-border bg-card px-8 py-12 text-center">
                 <div className="max-w-md space-y-3">
                   <p className="text-base font-semibold text-foreground">
-                    {isOfficePreviewDocument ? 'Preparing in-browser preview' : 'Preview unavailable'}
+                    {isSpreadsheetDocument || isPresentationDocument || isDocumentPreviewDocument
+                      ? 'Preparing in-browser preview'
+                      : 'Preview unavailable'}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {isOfficePreviewDocument
-                      ? 'This file opens in the embedded Office viewer. Accurate per-page analytics require a trackable PDF preview.'
+                    {isSpreadsheetDocument || isPresentationDocument || isDocumentPreviewDocument
+                      ? 'Loading the secure in-app renderer for this document.'
                       : 'This file type cannot be rendered in the browser in the current build.'}
                   </p>
                 </div>

@@ -1,15 +1,58 @@
-const OFFICE_EMBED_FILE_TYPES = new Set(['doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx']);
+const PDF_FILE_TYPES = new Set(['pdf']);
+const SPREADSHEET_FILE_TYPES = new Set(['csv', 'xls', 'xlsx']);
+const PRESENTATION_FILE_TYPES = new Set(['ppt', 'pptx']);
+const RICH_DOCUMENT_FILE_TYPES = new Set(['doc', 'docx']);
+const HTML_PRESENTATION_FILE_TYPES = new Set(['pptx']);
+const HTML_DOCUMENT_FILE_TYPES = new Set(['docx']);
+
+export type ViewerDocumentKind = 'document' | 'pdf' | 'presentation' | 'spreadsheet' | 'unsupported';
 
 export function normalizeViewerFileType(fileType: string | null | undefined) {
   return (fileType ?? '').trim().toLowerCase();
 }
 
 export function isPdfViewerFile(fileType: string | null | undefined) {
-  return normalizeViewerFileType(fileType) === 'pdf';
+  return PDF_FILE_TYPES.has(normalizeViewerFileType(fileType));
 }
 
-export function isOfficeEmbedViewerFile(fileType: string | null | undefined) {
-  return OFFICE_EMBED_FILE_TYPES.has(normalizeViewerFileType(fileType));
+export function isSpreadsheetViewerFile(fileType: string | null | undefined) {
+  return SPREADSHEET_FILE_TYPES.has(normalizeViewerFileType(fileType));
+}
+
+export function isPresentationViewerFile(fileType: string | null | undefined) {
+  return PRESENTATION_FILE_TYPES.has(normalizeViewerFileType(fileType));
+}
+
+export function isRenderablePresentationViewerFile(fileType: string | null | undefined) {
+  return HTML_PRESENTATION_FILE_TYPES.has(normalizeViewerFileType(fileType));
+}
+
+export function isDocumentViewerFile(fileType: string | null | undefined) {
+  return RICH_DOCUMENT_FILE_TYPES.has(normalizeViewerFileType(fileType));
+}
+
+export function isRenderableDocumentViewerFile(fileType: string | null | undefined) {
+  return HTML_DOCUMENT_FILE_TYPES.has(normalizeViewerFileType(fileType));
+}
+
+export function getViewerDocumentKind(fileType: string | null | undefined): ViewerDocumentKind {
+  if (isPdfViewerFile(fileType)) {
+    return 'pdf';
+  }
+
+  if (isSpreadsheetViewerFile(fileType)) {
+    return 'spreadsheet';
+  }
+
+  if (isPresentationViewerFile(fileType)) {
+    return 'presentation';
+  }
+
+  if (isDocumentViewerFile(fileType)) {
+    return 'document';
+  }
+
+  return 'unsupported';
 }
 
 export function resolveViewerToken({
@@ -48,8 +91,4 @@ export function buildViewerDocumentPath({
   }
 
   return `/api/links/${encodeURIComponent(linkId)}/document?${params.toString()}`;
-}
-
-export function buildOfficeEmbedUrl(sourceUrl: string) {
-  return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(sourceUrl)}`;
 }

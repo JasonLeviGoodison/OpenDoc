@@ -400,7 +400,7 @@ export default function DocumentDetailPage() {
             <CardContent className="p-0">
               {document.file_type !== 'pdf' ? (
                 <div className="border-b border-border bg-card-hover px-6 py-3 text-xs text-muted-foreground">
-                  Accurate page analytics are currently available for the in-app PDF viewer. Office previews keep visit-level analytics, but not trustworthy slide-level tracking.
+                  Accurate page analytics are currently available for the in-app PDF viewer. Other secure previews keep visit-level analytics, but not trustworthy sheet, slide, or page-level tracking.
                 </div>
               ) : null}
 
