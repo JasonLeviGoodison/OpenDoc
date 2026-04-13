@@ -199,7 +199,9 @@ export default function DocumentsPage() {
                     <p className="text-xs text-muted mt-1.5">
                       {document.preview_status === 'pending'
                         ? 'Generating trackable preview'
-                        : `${document.page_count} pages`} &middot; {formatDate(document.created_at)}
+                        : document.preview_status === 'failed'
+                          ? 'Preview unavailable'
+                          : `${document.page_count} pages`} &middot; {formatDate(document.created_at)}
                     </p>
                   </div>
                 </Card>
@@ -217,7 +219,11 @@ export default function DocumentsPage() {
                     <p className="text-xs text-muted-foreground">{document.original_filename}</p>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {document.preview_status === 'pending' ? 'Generating preview' : `${document.page_count} pages`}
+                    {document.preview_status === 'pending'
+                      ? 'Generating preview'
+                      : document.preview_status === 'failed'
+                        ? 'Preview unavailable'
+                        : `${document.page_count} pages`}
                   </div>
                   <div className="text-xs text-muted-foreground">{formatFileSize(document.file_size)}</div>
                   <Badge variant="accent" className="uppercase text-[10px]">{document.file_type}</Badge>

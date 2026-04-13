@@ -1,11 +1,34 @@
-import { after, NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { documents } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { serializeDocument } from '@/lib/serializers';
-import { ensureCurrentUserRecord, requireUserId, toErrorResponse } from '@/lib/server/auth';
+import { ensureCurrentUserRecord, requireUserId, RouteError, toErrorResponse } from '@/lib/server/auth';
+import { ensureDocumentPreview } from '@/lib/server/document-preview';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { createPreviewStoragePath } from '@/lib/storage';
 import { parseDocumentCreateBody } from '@/lib/validators';
 import { getInitialDocumentPreviewState } from '@/lib/viewer';
+
+export const maxDuration = 300;
+
+async function rollbackDocumentUpload(documentId: string, objectPaths: Array<string | null | undefined>) {
+  const uniqueObjectPaths = [...new Set(objectPaths.filter((value): value is string => Boolean(value)))];
+
+  if (uniqueObjectPaths.length > 0) {
+    const { error } = await getSupabaseAdmin().storage.from('documents').remove(uniqueObjectPaths);
+
+    if (error) {
+      console.error('Failed to clean up document upload objects', {
+        documentId,
+        error: error.message,
+        objectPaths: uniqueObjectPaths,
+      });
+    }
+  }
+
+  await db.delete(documents).where(eq(documents.id, documentId));
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -51,16 +74,26 @@ export async function POST(req: NextRequest) {
       })
       .returning();
 
-    after(async () => {
-      try {
-        const { ensureDocumentPreview } = await import('@/lib/server/document-preview');
-        await ensureDocumentPreview(row.id);
-      } catch (previewError) {
-        console.error('Failed to generate document preview', previewError);
-      }
-    });
+    const previewPath = createPreviewStoragePath(userId, row.id);
 
-    return NextResponse.json(serializeDocument(row), { status: 201 });
+    try {
+      await ensureDocumentPreview(row.id);
+
+      const [refreshedRow] = await db.select().from(documents).where(eq(documents.id, row.id));
+
+      if (!refreshedRow) {
+        throw new RouteError('Document upload could not be finalized.', 500);
+      }
+
+      if (refreshedRow.previewStatus === 'failed') {
+        throw new RouteError(refreshedRow.previewError || 'Document preview generation failed.', 500);
+      }
+
+      return NextResponse.json(serializeDocument(refreshedRow), { status: 201 });
+    } catch (error) {
+      await rollbackDocumentUpload(row.id, [row.fileUrl, previewPath]);
+      throw error;
+    }
   } catch (error) {
     return toErrorResponse(error);
   }

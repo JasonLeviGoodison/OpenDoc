@@ -22,6 +22,7 @@ export function serializeDocument(row: DocumentRow) {
     fileType: row.fileType,
     previewFileType: row.previewFileType,
     previewStatus: row.previewStatus,
+    previewUpdatedAt: row.previewUpdatedAt,
   });
 
   return {
@@ -51,6 +52,7 @@ export function serializeDocumentSummary(row: DocumentRow) {
     fileType: row.fileType,
     previewFileType: row.previewFileType,
     previewStatus: row.previewStatus,
+    previewUpdatedAt: row.previewUpdatedAt,
   });
 
   return {
@@ -62,6 +64,7 @@ export function serializeDocumentSummary(row: DocumentRow) {
     preview_file_type: resolvedPreview.previewFileType,
     preview_page_count: row.previewPageCount ?? 0,
     preview_status: resolvedPreview.previewStatus,
+    preview_updated_at: row.previewUpdatedAt?.toISOString() ?? null,
   };
 }
 

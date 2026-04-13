@@ -44,6 +44,9 @@ test('viewer helper detects supported preview kinds', () => {
 });
 
 test('viewer helper derives trackable preview state and inline file types', () => {
+  const recentPreviewUpdate = new Date();
+  const stalePreviewUpdate = new Date(Date.now() - 5 * 60_000);
+
   assert.deepEqual(getInitialDocumentPreviewState('pdf'), {
     previewFileType: 'pdf',
     previewStatus: 'ready',
@@ -71,6 +74,45 @@ test('viewer helper derives trackable preview state and inline file types', () =
     },
   );
 
+  assert.deepEqual(
+    getResolvedDocumentPreviewState({
+      fileType: 'pptx',
+      previewFileType: 'pdf',
+      previewStatus: 'pending',
+      previewUpdatedAt: recentPreviewUpdate,
+    }),
+    {
+      previewFileType: 'pdf',
+      previewStatus: 'pending',
+    },
+  );
+
+  assert.deepEqual(
+    getResolvedDocumentPreviewState({
+      fileType: 'pptx',
+      previewFileType: 'pdf',
+      previewStatus: 'pending',
+      previewUpdatedAt: stalePreviewUpdate,
+    }),
+    {
+      previewFileType: 'pdf',
+      previewStatus: 'failed',
+    },
+  );
+
+  assert.deepEqual(
+    getResolvedDocumentPreviewState({
+      fileType: 'pptx',
+      previewFileType: 'pdf',
+      previewStatus: 'pending',
+      previewUpdatedAt: null,
+    }),
+    {
+      previewFileType: 'pdf',
+      previewStatus: 'failed',
+    },
+  );
+
   assert.equal(
     getInlineViewerFileType({
       fileType: 'pptx',
@@ -92,15 +134,17 @@ test('viewer helper derives trackable preview state and inline file types', () =
   assert.equal(
     isInlinePreviewPending({
       fileType: 'pptx',
-      previewStatus: 'none',
+      previewStatus: 'pending',
+      previewUpdatedAt: recentPreviewUpdate,
     }),
     true,
   );
 
   assert.equal(
     isInlinePreviewFailed({
-      fileType: 'docx',
-      previewStatus: 'failed',
+      fileType: 'pptx',
+      previewStatus: 'pending',
+      previewUpdatedAt: stalePreviewUpdate,
     }),
     true,
   );

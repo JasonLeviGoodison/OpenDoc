@@ -26,6 +26,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         pageCount: documents.pageCount,
         previewFileType: documents.previewFileType,
         previewStatus: documents.previewStatus,
+        previewUpdatedAt: documents.previewUpdatedAt,
       })
       .from(documents)
       .where(and(eq(documents.id, id), eq(documents.userId, userId)));
@@ -71,6 +72,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       fileType: document.fileType,
       previewFileType: document.previewFileType,
       previewStatus: document.previewStatus,
+      previewUpdatedAt: document.previewUpdatedAt,
     });
 
     return NextResponse.json({

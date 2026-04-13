@@ -3,9 +3,25 @@ const SPREADSHEET_FILE_TYPES = new Set(['csv', 'xls', 'xlsx']);
 const PRESENTATION_FILE_TYPES = new Set(['ppt', 'pptx']);
 const RICH_DOCUMENT_FILE_TYPES = new Set(['doc', 'docx']);
 const TRACKABLE_PREVIEW_SOURCE_FILE_TYPES = new Set(['doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx']);
+const PREVIEW_PENDING_STALE_MS = 2 * 60_000;
 
 export type ViewerDocumentKind = 'document' | 'pdf' | 'presentation' | 'spreadsheet' | 'unsupported';
 export type DocumentPreviewStatus = 'failed' | 'none' | 'pending' | 'ready';
+
+function isStalePendingPreview(previewUpdatedAt: Date | string | null | undefined) {
+  if (!previewUpdatedAt) {
+    return true;
+  }
+
+  const resolvedPreviewUpdatedAt =
+    previewUpdatedAt instanceof Date ? previewUpdatedAt.getTime() : new Date(previewUpdatedAt).getTime();
+
+  if (Number.isNaN(resolvedPreviewUpdatedAt)) {
+    return true;
+  }
+
+  return Date.now() - resolvedPreviewUpdatedAt >= PREVIEW_PENDING_STALE_MS;
+}
 
 export function normalizeViewerFileType(fileType: string | null | undefined) {
   return (fileType ?? '').trim().toLowerCase();
@@ -79,10 +95,12 @@ export function getResolvedDocumentPreviewState({
   fileType,
   previewFileType,
   previewStatus,
+  previewUpdatedAt,
 }: {
   fileType: string | null | undefined;
   previewFileType: string | null | undefined;
   previewStatus: DocumentPreviewStatus | string | null | undefined;
+  previewUpdatedAt?: Date | string | null | undefined;
 }): {
   previewFileType: string | null;
   previewStatus: DocumentPreviewStatus;
@@ -108,6 +126,13 @@ export function getResolvedDocumentPreviewState({
     };
   }
 
+  if (previewStatus === 'pending' && isTrackablePreviewSourceFile(fileType) && isStalePendingPreview(previewUpdatedAt)) {
+    return {
+      previewFileType: 'pdf',
+      previewStatus: 'failed',
+    };
+  }
+
   if (isTrackablePreviewSourceFile(fileType)) {
     return {
       previewFileType: 'pdf',
@@ -125,15 +150,18 @@ export function getInlineViewerFileType({
   fileType,
   previewFileType,
   previewStatus,
+  previewUpdatedAt,
 }: {
   fileType: string | null | undefined;
   previewFileType: string | null | undefined;
   previewStatus: DocumentPreviewStatus | string | null | undefined;
+  previewUpdatedAt?: Date | string | null | undefined;
 }) {
   return getResolvedDocumentPreviewState({
     fileType,
     previewFileType,
     previewStatus,
+    previewUpdatedAt,
   }).previewStatus === 'ready'
     ? 'pdf'
     : null;
@@ -143,16 +171,19 @@ export function isInlinePreviewPending({
   fileType,
   previewFileType,
   previewStatus,
+  previewUpdatedAt,
 }: {
   fileType: string | null | undefined;
   previewFileType?: string | null | undefined;
   previewStatus: DocumentPreviewStatus | string | null | undefined;
+  previewUpdatedAt?: Date | string | null | undefined;
 }) {
   return (
     getResolvedDocumentPreviewState({
       fileType,
       previewFileType,
       previewStatus,
+      previewUpdatedAt,
     }).previewStatus === 'pending'
   );
 }
@@ -161,16 +192,19 @@ export function isInlinePreviewFailed({
   fileType,
   previewFileType,
   previewStatus,
+  previewUpdatedAt,
 }: {
   fileType: string | null | undefined;
   previewFileType?: string | null | undefined;
   previewStatus: DocumentPreviewStatus | string | null | undefined;
+  previewUpdatedAt?: Date | string | null | undefined;
 }) {
   return (
     getResolvedDocumentPreviewState({
       fileType,
       previewFileType,
       previewStatus,
+      previewUpdatedAt,
     }).previewStatus === 'failed'
   );
 }

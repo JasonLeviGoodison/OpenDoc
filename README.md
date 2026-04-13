@@ -62,6 +62,7 @@ Required for local development:
 - `CLERK_SECRET_KEY`
 - `CLERK_WEBHOOK_SIGNING_SECRET`
 - `OPENDOC_TOKEN_SECRET`
+- `OPENDOC_SOFFICE_PATH` (optional override for the LibreOffice `soffice` binary used for Office previews)
 
 ## Development
 
@@ -83,6 +84,7 @@ Deployment notes:
 - If your database was originally created with `npm run db:push`, run `npm run db:baseline` once before switching to `npm run db:migrate`.
 - Builds auto-run `npm run db:migrate` on Vercel when `VERCEL_GIT_COMMIT_REF=main`.
 - On other platforms, set `MIGRATE_ON_BUILD=1` if you want the same behavior.
+- PowerPoint, Word, and Excel previews require LibreOffice (`soffice`) in the runtime environment. If it is not on `PATH`, set `OPENDOC_SOFFICE_PATH`.
 
 ## Security Notes
 

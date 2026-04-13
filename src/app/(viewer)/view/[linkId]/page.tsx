@@ -57,6 +57,7 @@ interface SharedDocumentSummary {
   preview_file_type: string | null;
   preview_page_count: number;
   preview_status: string;
+  preview_updated_at: string | null;
 }
 
 interface SharedSpace {
@@ -146,6 +147,7 @@ export default function ViewerPage() {
         fileType: currentDocument.file_type,
         previewFileType: currentDocument.preview_file_type,
         previewStatus: currentDocument.preview_status,
+        previewUpdatedAt: currentDocument.preview_updated_at,
       })
     : null;
   const isPdfDocument = isPdfViewerFile(inlineViewerFileType);
@@ -153,12 +155,14 @@ export default function ViewerPage() {
     ? isInlinePreviewPending({
         fileType: currentDocument.file_type,
         previewStatus: currentDocument.preview_status,
+        previewUpdatedAt: currentDocument.preview_updated_at,
       })
     : false;
   const previewFailed = currentDocument
     ? isInlinePreviewFailed({
         fileType: currentDocument.file_type,
         previewStatus: currentDocument.preview_status,
+        previewUpdatedAt: currentDocument.preview_updated_at,
       })
     : false;
   const supportsZoom = isPdfDocument;
@@ -810,7 +814,9 @@ export default function ViewerPage() {
                   <p className="text-xs">
                     {document.preview_status === 'pending'
                       ? 'generating preview...'
-                      : `${document.preview_page_count || document.page_count || 0} pages`}
+                      : document.preview_status === 'failed'
+                        ? 'preview unavailable'
+                        : `${document.preview_page_count || document.page_count || 0} pages`}
                     {pendingDocumentId === document.id ? ' · opening...' : ''}
                   </p>
                 </button>

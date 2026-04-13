@@ -92,6 +92,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ link
       fileType: document.fileType,
       previewFileType: document.previewFileType,
       previewStatus: document.previewStatus,
+      previewUpdatedAt: document.previewUpdatedAt,
     });
 
     if (!downloadRequested) {
@@ -99,6 +100,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ link
         fileType: document.fileType,
         previewFileType: resolvedPreview.previewFileType,
         previewStatus: resolvedPreview.previewStatus,
+        previewUpdatedAt: document.previewUpdatedAt,
       });
 
       if (inlineViewerFileType !== 'pdf') {
@@ -107,6 +109,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ link
             fileType: document.fileType,
             previewFileType: resolvedPreview.previewFileType,
             previewStatus: resolvedPreview.previewStatus,
+            previewUpdatedAt: document.previewUpdatedAt,
           })
         ) {
           throw new RouteError('Preview is still processing.', 409);
@@ -117,6 +120,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ link
             fileType: document.fileType,
             previewFileType: resolvedPreview.previewFileType,
             previewStatus: resolvedPreview.previewStatus,
+            previewUpdatedAt: document.previewUpdatedAt,
           })
         ) {
           throw new RouteError(document.previewError || 'Preview generation failed.', 409);

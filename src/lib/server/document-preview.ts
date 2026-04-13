@@ -204,23 +204,12 @@ async function getPdfPageCount(pdfBuffer: Buffer) {
   }
 }
 
-async function runSofficeConversion(inputPath: string, outputDir: string) {
+async function runSofficeCommand(args: string[]) {
   let lastError: unknown = null;
 
   for (const candidate of SOFFICE_CANDIDATES) {
     try {
-      await execFileAsync(candidate, [
-        '--headless',
-        '--nologo',
-        '--nodefault',
-        '--norestore',
-        '--nolockcheck',
-        '--convert-to',
-        'pdf',
-        '--outdir',
-        outputDir,
-        inputPath,
-      ]);
+      await execFileAsync(candidate, args);
       return;
     } catch (error) {
       lastError = error;
@@ -232,6 +221,30 @@ async function runSofficeConversion(inputPath: string, outputDir: string) {
   }
 
   throw lastError ?? new Error('Preview generation requires LibreOffice (`soffice`).');
+}
+
+export async function hasDocumentPreviewRuntime() {
+  try {
+    await runSofficeCommand(['--version']);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function runSofficeConversion(inputPath: string, outputDir: string) {
+  await runSofficeCommand([
+    '--headless',
+    '--nologo',
+    '--nodefault',
+    '--norestore',
+    '--nolockcheck',
+    '--convert-to',
+    'pdf',
+    '--outdir',
+    outputDir,
+    inputPath,
+  ]);
 }
 
 async function convertOfficeDocumentToPdf(buffer: Buffer, filename: string) {

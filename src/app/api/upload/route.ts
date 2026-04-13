@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { MAX_UPLOAD_FILE_SIZE_BYTES } from '@/lib/upload';
 import { ensureCurrentUserRecord, requireUserId, RouteError, toErrorResponse } from '@/lib/server/auth';
+import { hasDocumentPreviewRuntime } from '@/lib/server/document-preview';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { createStoragePath } from '@/lib/storage';
 import { getFileExtension } from '@/lib/utils';
 import { parseUploadRequestBody } from '@/lib/validators';
+import { isTrackablePreviewSourceFile } from '@/lib/viewer';
 
 const ALLOWED_EXTENSIONS = new Set(['pdf', 'ppt', 'pptx', 'doc', 'docx', 'xls', 'xlsx']);
 
@@ -26,6 +28,13 @@ export async function POST(req: NextRequest) {
 
     if (body.fileSize > MAX_UPLOAD_FILE_SIZE_BYTES) {
       throw new RouteError('File is too large.', 400);
+    }
+
+    if (isTrackablePreviewSourceFile(fileExt) && !(await hasDocumentPreviewRuntime())) {
+      throw new RouteError(
+        'Trackable previews for PowerPoint, Word, and Excel files require LibreOffice (`soffice`) in the runtime environment.',
+        503,
+      );
     }
 
     const filePath = createStoragePath(userId, body.fileName);
