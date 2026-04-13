@@ -1,12 +1,31 @@
 {
-  "name": "docsend-killer",
+  "name": "opendoc",
   "version": "0.1.0",
+  "description": "Open-source secure document sharing, viewer analytics, and virtual data rooms.",
+  "license": "AGPL-3.0-only",
   "private": true,
+  "homepage": "https://github.com/JasonLeviGoodison/OpenDoc",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JasonLeviGoodison/OpenDoc.git"
+  },
+  "bugs": {
+    "url": "https://github.com/JasonLeviGoodison/OpenDoc/issues"
+  },
+  "keywords": [
+    "opendoc",
+    "nextjs",
+    "documents",
+    "analytics",
+    "data-room",
+    "agpl"
+  ],
   "scripts": {
     "dev": "next dev",
-    "build": "drizzle-kit migrate || true && next build",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "node --import tsx --test tests/*.test.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",

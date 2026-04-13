@@ -5,7 +5,6 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import {
-  BarChart3,
   Lock,
   Eye,
   FileText,
@@ -48,21 +47,21 @@ const features = [
   },
   {
     icon: Mail,
-    title: "Real-time notifications",
+    title: "Viewer activity logs",
     description:
-      "The moment someone opens your document, you know. See who viewed it, when, from where, on what device, and for how long.",
+      "Capture who opened your document, when, from where, on what device, and how long they stayed. Activity is recorded inside the dashboard for follow-up.",
   },
   {
     icon: FileText,
     title: "Virtual data rooms",
     description:
-      "Bundle multiple documents into branded spaces with folder organization, per-folder permissions, and aggregated analytics across the entire room.",
+      "Bundle multiple documents into branded spaces, share them with a single link, and review engagement across the room.",
   },
   {
     icon: Zap,
-    title: "One-click e-signatures",
+    title: "NDA acknowledgements",
     description:
-      "Gate access behind NDAs. Collect legally-binding signatures before the first page loads. Full audit trail with IP, timestamp, and signed document.",
+      "Gate access behind NDAs and capture the accepted text, signer identity, IP address, and timestamp before the viewer opens the document.",
   },
 ];
 
@@ -302,7 +301,7 @@ export default function LandingPage() {
 
             <p className="text-lg text-muted-foreground max-w-lg mb-8 leading-relaxed">
               The DocSend alternative built for startup teams of up to 5. Send decks, manage data
-              rooms, track investor engagement — with download blocking, watermarking, and
+              rooms, track investor engagement — with gated downloads, watermarking, and
               page-level analytics. Pay once, own it forever.
             </p>
 
@@ -397,9 +396,9 @@ export default function LandingPage() {
               they send out.
             </p>
             <p className="text-muted-foreground text-base leading-relaxed">
-              We block document downloads using browser-level protections against common screenshot
-              and save tools. Watermarking makes every leak traceable. You know exactly who read
-              what, for how long, and where they dropped off.
+              Shared files are served through gated viewer routes, and watermarking makes every
+              leak traceable. You know exactly who read what, for how long, and where they dropped
+              off.
             </p>
           </div>
           <div className="space-y-6">
@@ -410,11 +409,11 @@ export default function LandingPage() {
               },
               {
                 title: "Data rooms",
-                desc: "Set up a secure data room in minutes. Per-folder permissions, NDA gates, audit trails. Everything a lead investor needs for diligence.",
+                desc: "Set up a secure data room in minutes. Bundle multiple files behind one share link, add NDA gates, and review the audit trail in one place.",
               },
               {
-                title: "Download blocking",
-                desc: "Browser-level protections prevent casual downloading, screenshots, and save-as. Dynamic watermarking makes every leak traceable to the viewer.",
+                title: "Controlled downloads",
+                desc: "Deliver files through the gated viewer, keep downloads optional per link, and pair access controls with dynamic watermarking.",
               },
               {
                 title: "Need enterprise scale?",
@@ -437,7 +436,7 @@ export default function LandingPage() {
             Why switch
           </p>
           <h2 className="text-3xl font-extrabold tracking-tight mb-4">
-            Everything DocSend does. None of what it charges.
+            The core document-sharing stack. None of the monthly bill.
           </h2>
           <p className="text-muted-foreground text-base max-w-2xl mb-16">
             DocSend costs $45–$150/month per user and locks advanced features behind expensive
@@ -459,14 +458,14 @@ export default function LandingPage() {
                   "Page-by-page analytics",
                   "Email capture & password protection",
                   "Dynamic watermarking",
-                  "One-click NDA & e-signatures",
+                  "NDA capture & audit trail",
                   "Virtual data rooms",
                   "Allow/block lists",
                   "Custom branding",
                   "Link expiration & download control",
                   "Visitor location tracking",
                   "Open source & self-hostable",
-                  "Unlimited users — no per-seat pricing",
+                  "Self-host for larger teams",
                   "All future updates included",
                 ].map((item) => (
                   <li key={item} className="flex items-center gap-3 text-sm">
@@ -530,8 +529,8 @@ export default function LandingPage() {
             Enterprise security, startup speed
           </h2>
           <p className="text-muted-foreground text-base max-w-lg mb-16">
-            Every feature DocSend offers, rebuilt from scratch with a modern stack. No compromises
-            on analytics, security, or control.
+            Core sharing, analytics, and access controls rebuilt with a modern stack and a
+            simpler operating model for small teams.
           </p>
 
           <div className="grid md:grid-cols-2 gap-x-16 gap-y-12">
@@ -608,14 +607,14 @@ export default function LandingPage() {
                 </h2>
                 <p className="text-muted-foreground text-base leading-relaxed mb-10 max-w-md">
                   While you&apos;re paying DocSend $150/month, your competitors are switching to
-                  OpenDoc. One payment. Every feature. Forever.
+                  OpenDoc. One payment. Core sharing, analytics, and access controls. Forever.
                 </p>
 
                 <ul className="space-y-4 mb-12">
                   {[
                     "Up to 5 team members",
                     "Page-by-page analytics and watermarking",
-                    "Virtual data rooms and e-signatures",
+                    "Virtual data rooms and NDA capture",
                     "Custom branding on all shared links",
                     "Every future update included",
                   ].map((item) => (
@@ -719,7 +718,7 @@ export default function LandingPage() {
             </a>
           </div>
           <p className="text-xs text-muted">
-            &copy; {new Date().getFullYear()} OpenDoc. All rights reserved.
+            &copy; {new Date().getFullYear()} OpenDoc. AGPL-3.0 licensed.
           </p>
         </div>
       </footer>

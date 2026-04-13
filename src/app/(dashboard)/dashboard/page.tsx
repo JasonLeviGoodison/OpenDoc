@@ -1,25 +1,16 @@
 'use client';
 
-import { Header } from '@/components/dashboard/header';
-import { StatsCard } from '@/components/ui/stats-card';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import {
-  Eye,
-  Users,
-  Clock,
-  BarChart3,
-  FileText,
-  ArrowUpRight,
-  Plus,
-} from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useEffect, useEffectEvent, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { formatDate, formatDuration } from '@/lib/utils';
+import { ArrowUpRight, FileText, Plus } from 'lucide-react';
+
+import { Header } from '@/components/dashboard/header';
+import { Button } from '@/components/ui/button';
+import { StatsCard } from '@/components/ui/stats-card';
+import { apiFetchJson } from '@/lib/api-client';
 import type { Document, Visit } from '@/lib/types';
+import { formatDate, formatDuration } from '@/lib/utils';
 
 export default function DashboardPage() {
   const { user } = useUser();
@@ -27,44 +18,45 @@ export default function DashboardPage() {
   const [visits, setVisits] = useState<Visit[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!user) return;
-    loadData();
-  }, [user]);
+  const loadData = useEffectEvent(async () => {
+    if (!user) {
+      return;
+    }
 
-  async function loadData() {
+    setLoading(true);
+
     try {
-      const [docsRes, visitsRes] = await Promise.all([
-        supabase
-          .from('documents')
-          .select('*')
-          .eq('user_id', user!.id)
-          .order('created_at', { ascending: false })
-          .limit(5),
-        supabase
-          .from('visits')
-          .select('*, document_links!inner(user_id)')
-          .eq('document_links.user_id', user!.id)
-          .order('created_at', { ascending: false })
-          .limit(10),
+      const [documentRows, visitRows] = await Promise.all([
+        apiFetchJson<Document[]>('/api/documents?limit=5'),
+        apiFetchJson<Visit[]>('/api/visits?limit=10'),
       ]);
 
-      setDocuments(docsRes.data || []);
-      setVisits(visitsRes.data || []);
+      setDocuments(documentRows);
+      setVisits(visitRows);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
       setLoading(false);
     }
-  }
+  });
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    void loadData();
+  }, [user]);
 
   const totalViews = visits.length;
-  const uniqueVisitors = new Set(visits.map(v => v.visitor_email)).size;
+  const uniqueVisitors = new Set(visits.map((visit) => visit.visitor_email).filter(Boolean)).size;
   const avgDuration = visits.length > 0
-    ? visits.reduce((acc, v) => acc + (v.duration || 0), 0) / visits.length
+    ? visits.reduce((acc, visit) => acc + (visit.duration || 0), 0) / visits.length
     : 0;
   const avgCompletion = visits.length > 0
-    ? Math.round(visits.reduce((acc, v) => acc + (v.completion_rate || 0), 0) / visits.length)
+    ? Math.round(
+        visits.reduce((acc, visit) => acc + (visit.completion_rate || 0), 0) / visits.length,
+      )
     : 0;
 
   return (
@@ -83,16 +75,24 @@ export default function DashboardPage() {
       />
 
       <div className="p-8 space-y-8">
-        {/* Stats — clean horizontal row, no icon boxes */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-border rounded-xl overflow-hidden border border-border">
           <div className="bg-card px-5 py-4">
             <StatsCard label="Total Views" value={totalViews} change="+12% from last week" changeType="positive" />
           </div>
           <div className="bg-card px-5 py-4">
-            <StatsCard label="Unique Visitors" value={uniqueVisitors} change="+8% from last week" changeType="positive" />
+            <StatsCard
+              label="Unique Visitors"
+              value={uniqueVisitors}
+              change="+8% from last week"
+              changeType="positive"
+            />
           </div>
           <div className="bg-card px-5 py-4">
-            <StatsCard label="Avg. Time Spent" value={formatDuration(avgDuration)} change="Across all documents" />
+            <StatsCard
+              label="Avg. Time Spent"
+              value={formatDuration(avgDuration)}
+              change="Across all documents"
+            />
           </div>
           <div className="bg-card px-5 py-4">
             <StatsCard label="Completion Rate" value={`${avgCompletion}%`} change="Avg. across all docs" />
@@ -100,7 +100,6 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid lg:grid-cols-[2fr,1fr] gap-6">
-          {/* Recent Activity */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-bold text-foreground uppercase tracking-wide">Recent Activity</h2>
@@ -113,7 +112,7 @@ export default function DashboardPage() {
             </div>
             {visits.length === 0 ? (
               <div className="py-16 text-center text-muted text-sm border border-border rounded-xl bg-card">
-                No activity yet. Share a document to start tracking.
+                {loading ? 'Loading activity...' : 'No activity yet. Share a document to start tracking.'}
               </div>
             ) : (
               <div className="border border-border rounded-xl overflow-hidden bg-card divide-y divide-border">
@@ -128,7 +127,8 @@ export default function DashboardPage() {
                           {visit.visitor_email || 'Anonymous'}
                         </p>
                         <p className="text-xs text-muted truncate">
-                          {visit.city && `${visit.city}, `}{visit.country || 'Unknown'} &middot; {visit.device_type || 'Unknown'}
+                          {visit.city && `${visit.city}, `}
+                          {visit.country || 'Unknown'} &middot; {visit.device_type || 'Unknown'}
                         </p>
                       </div>
                     </div>
@@ -142,7 +142,6 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Recent Documents */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-bold text-foreground uppercase tracking-wide">Documents</h2>
@@ -155,21 +154,21 @@ export default function DashboardPage() {
             </div>
             {documents.length === 0 ? (
               <div className="py-16 text-center text-muted text-sm border border-border rounded-xl bg-card">
-                No documents yet.
+                {loading ? 'Loading documents...' : 'No documents yet.'}
               </div>
             ) : (
               <div className="border border-border rounded-xl overflow-hidden bg-card divide-y divide-border">
-                {documents.map((doc) => (
+                {documents.map((document) => (
                   <Link
-                    key={doc.id}
-                    href={`/documents/${doc.id}`}
+                    key={document.id}
+                    href={`/documents/${document.id}`}
                     className="px-5 py-3 flex items-center gap-3 hover:bg-card-hover transition-colors block"
                   >
                     <FileText size={16} className="text-muted flex-shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{doc.name}</p>
+                      <p className="text-sm font-medium text-foreground truncate">{document.name}</p>
                       <p className="text-xs text-muted">
-                        {doc.page_count} pg &middot; {formatDate(doc.created_at)}
+                        {document.page_count} pg &middot; {formatDate(document.created_at)}
                       </p>
                     </div>
                   </Link>

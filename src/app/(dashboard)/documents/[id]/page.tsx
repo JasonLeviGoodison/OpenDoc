@@ -1,52 +1,45 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { Header } from '@/components/dashboard/header';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Toggle } from '@/components/ui/toggle';
-import { Modal } from '@/components/ui/modal';
-import { StatsCard } from '@/components/ui/stats-card';
+import Link from 'next/link';
+import { useParams } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
+import { useUser } from '@clerk/nextjs';
 import {
-  Eye,
-  Users,
-  Clock,
-  BarChart3,
-  Link2,
-  Plus,
-  Copy,
+  ArrowLeft,
+  Calendar,
   Check,
+  Copy,
+  Download,
   ExternalLink,
+  Eye,
+  Lock,
+  Mail,
+  Plus,
   Settings,
   Trash2,
-  Mail,
-  Lock,
-  Calendar,
-  Download,
-  FileText,
-  ArrowLeft,
 } from 'lucide-react';
-import Link from 'next/link';
-import { useUser } from '@clerk/nextjs';
-import { supabase } from '@/lib/supabase';
-import { formatDate, formatDuration, generateLinkId } from '@/lib/utils';
+
+import { Header } from '@/components/dashboard/header';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Modal } from '@/components/ui/modal';
+import { StatsCard } from '@/components/ui/stats-card';
+import { Toggle } from '@/components/ui/toggle';
+import { apiFetchJson } from '@/lib/api-client';
 import type { Document, DocumentLink, Visit } from '@/lib/types';
+import { formatDate, formatDuration } from '@/lib/utils';
 
 export default function DocumentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useUser();
-  const router = useRouter();
   const [document, setDocument] = useState<Document | null>(null);
   const [links, setLinks] = useState<DocumentLink[]>([]);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [loading, setLoading] = useState(true);
   const [createLinkOpen, setCreateLinkOpen] = useState(false);
   const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
-
-  // New link form state
   const [linkName, setLinkName] = useState('');
   const [requireEmail, setRequireEmail] = useState(true);
   const [requirePassword, setRequirePassword] = useState(false);
@@ -58,51 +51,89 @@ export default function DocumentDetailPage() {
   const [expiresAt, setExpiresAt] = useState('');
   const [allowedEmails, setAllowedEmails] = useState('');
   const [blockedEmails, setBlockedEmails] = useState('');
+  const [allowedDomains, setAllowedDomains] = useState('');
+  const [blockedDomains, setBlockedDomains] = useState('');
   const [creatingLink, setCreatingLink] = useState(false);
 
+  const loadData = useCallback(async () => {
+    if (!user || !id) {
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const [documentRow, linkRows, visitRows] = await Promise.all([
+        apiFetchJson<Document>(`/api/documents/${id}`),
+        apiFetchJson<DocumentLink[]>(`/api/share-links?documentId=${id}`),
+        apiFetchJson<Visit[]>(`/api/visits?documentId=${id}`),
+      ]);
+
+      setDocument(documentRow);
+      setLinks(linkRows);
+      setVisits(visitRows);
+    } catch (error) {
+      console.error('Error loading document details:', error);
+      setDocument(null);
+      setLinks([]);
+      setVisits([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [id, user]);
+
   useEffect(() => {
-    if (user && id) loadData();
-  }, [user, id]);
+    if (!user || !id) {
+      return;
+    }
 
-  async function loadData() {
-    const [docRes, linksRes, visitsRes] = await Promise.all([
-      supabase.from('documents').select('*').eq('id', id).single(),
-      supabase.from('document_links').select('*').eq('document_id', id).order('created_at', { ascending: false }),
-      supabase.from('visits').select('*').eq('document_id', id).order('created_at', { ascending: false }),
-    ]);
-
-    setDocument(docRes.data);
-    setLinks(linksRes.data || []);
-    setVisits(visitsRes.data || []);
-    setLoading(false);
-  }
+    void loadData();
+  }, [id, loadData, user]);
 
   async function createLink() {
     setCreatingLink(true);
-    const newLinkId = generateLinkId();
-    const { error } = await supabase.from('document_links').insert({
-      document_id: id,
-      user_id: user!.id,
-      link_id: newLinkId,
-      name: linkName || 'Default Link',
-      require_email: requireEmail,
-      require_password: requirePassword,
-      password_hash: requirePassword ? password : null,
-      allow_download: allowDownload,
-      enable_watermark: enableWatermark,
-      require_nda: requireNda,
-      nda_text: requireNda ? ndaText : null,
-      expires_at: expiresAt || null,
-      allowed_emails: allowedEmails ? allowedEmails.split(',').map(e => e.trim()) : [],
-      blocked_emails: blockedEmails ? blockedEmails.split(',').map(e => e.trim()) : [],
-    });
 
-    if (!error) {
+    try {
+      await apiFetchJson<DocumentLink>('/api/share-links', {
+        body: JSON.stringify({
+          allow_download: allowDownload,
+          allowed_domains: allowedDomains
+            .split(',')
+            .map((value) => value.trim())
+            .filter(Boolean),
+          allowed_emails: allowedEmails
+            .split(',')
+            .map((value) => value.trim())
+            .filter(Boolean),
+          blocked_domains: blockedDomains
+            .split(',')
+            .map((value) => value.trim())
+            .filter(Boolean),
+          blocked_emails: blockedEmails
+            .split(',')
+            .map((value) => value.trim())
+            .filter(Boolean),
+          document_id: id,
+          enable_watermark: enableWatermark,
+          expires_at: expiresAt || null,
+          name: linkName || 'Default Link',
+          nda_text: requireNda ? ndaText : null,
+          password: requirePassword ? password : null,
+          require_email: requireEmail,
+          require_nda: requireNda,
+          require_password: requirePassword,
+        }),
+        method: 'POST',
+      });
+
       setCreateLinkOpen(false);
       resetLinkForm();
-      loadData();
+      await loadData();
+    } catch (error) {
+      console.error('Error creating link:', error);
+    } finally {
+      setCreatingLink(false);
     }
-    setCreatingLink(false);
   }
 
   function resetLinkForm() {
@@ -117,16 +148,23 @@ export default function DocumentDetailPage() {
     setExpiresAt('');
     setAllowedEmails('');
     setBlockedEmails('');
+    setAllowedDomains('');
+    setBlockedDomains('');
   }
 
   async function toggleLink(linkId: string, isActive: boolean) {
-    await supabase.from('document_links').update({ is_active: !isActive }).eq('id', linkId);
-    loadData();
+    await apiFetchJson<DocumentLink>(`/api/share-links/${linkId}`, {
+      body: JSON.stringify({ is_active: !isActive }),
+      method: 'PATCH',
+    });
+    await loadData();
   }
 
   async function deleteLink(linkId: string) {
-    await supabase.from('document_links').delete().eq('id', linkId);
-    loadData();
+    await apiFetchJson<{ success: boolean }>(`/api/share-links/${linkId}`, {
+      method: 'DELETE',
+    });
+    await loadData();
   }
 
   function copyLink(linkId: string) {
@@ -145,18 +183,18 @@ export default function DocumentDetailPage() {
   }
 
   if (!document) {
-    return (
-      <div className="p-8 text-center text-muted-foreground">Document not found.</div>
-    );
+    return <div className="p-8 text-center text-muted-foreground">Document not found.</div>;
   }
 
   const totalViews = visits.length;
-  const uniqueVisitors = new Set(visits.map(v => v.visitor_email).filter(Boolean)).size;
+  const uniqueVisitors = new Set(visits.map((visit) => visit.visitor_email).filter(Boolean)).size;
   const avgDuration = visits.length > 0
-    ? visits.reduce((acc, v) => acc + (v.duration || 0), 0) / visits.length
+    ? visits.reduce((acc, visit) => acc + (visit.duration || 0), 0) / visits.length
     : 0;
   const avgCompletion = visits.length > 0
-    ? Math.round(visits.reduce((acc, v) => acc + (v.completion_rate || 0), 0) / visits.length)
+    ? Math.round(
+        visits.reduce((acc, visit) => acc + (visit.completion_rate || 0), 0) / visits.length,
+      )
     : 0;
 
   return (
@@ -181,7 +219,6 @@ export default function DocumentDetailPage() {
       />
 
       <div className="p-8 space-y-8">
-        {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-border rounded-xl overflow-hidden border border-border">
           <div className="bg-card px-5 py-4">
             <StatsCard label="Total Views" value={totalViews} />
@@ -198,7 +235,6 @@ export default function DocumentDetailPage() {
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Links */}
           <Card className="lg:col-span-2">
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -229,22 +265,14 @@ export default function DocumentDetailPage() {
                           </Badge>
                         </div>
                         <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => copyLink(link.link_id)}
-                          >
+                          <Button variant="ghost" size="sm" onClick={() => copyLink(link.link_id)}>
                             {copiedLinkId === link.link_id ? (
                               <Check size={14} className="text-success" />
                             ) : (
                               <Copy size={14} />
                             )}
                           </Button>
-                          <a
-                            href={`/view/${link.link_id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
+                          <a href={`/view/${link.link_id}`} target="_blank" rel="noopener noreferrer">
                             <Button variant="ghost" size="sm">
                               <ExternalLink size={14} />
                             </Button>
@@ -256,16 +284,12 @@ export default function DocumentDetailPage() {
                           >
                             <Settings size={14} />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => deleteLink(link.id)}
-                          >
+                          <Button variant="ghost" size="sm" onClick={() => deleteLink(link.id)}>
                             <Trash2 size={14} className="text-danger" />
                           </Button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
                         <span className="flex items-center gap-1">
                           <Eye size={12} /> {link.visit_count} views
                         </span>
@@ -289,6 +313,9 @@ export default function DocumentDetailPage() {
                             <Download size={12} /> Download enabled
                           </span>
                         )}
+                        {link.allowed_domains.length > 0 && (
+                          <span>{link.allowed_domains.length} allowed domain{link.allowed_domains.length !== 1 ? 's' : ''}</span>
+                        )}
                         {link.expires_at && (
                           <span className="flex items-center gap-1">
                             <Calendar size={12} /> Expires {formatDate(link.expires_at)}
@@ -305,7 +332,6 @@ export default function DocumentDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Recent Visitors */}
           <Card>
             <CardHeader>
               <h2 className="text-sm font-bold text-foreground uppercase tracking-wide">
@@ -327,7 +353,8 @@ export default function DocumentDetailPage() {
                             {visit.visitor_email || 'Anonymous'}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {formatDuration(visit.duration || 0)} · {visit.page_count_viewed} pages · {Math.round(visit.completion_rate || 0)}%
+                            {formatDuration(visit.duration || 0)} · {visit.page_count_viewed} pages ·{' '}
+                            {Math.round(visit.completion_rate || 0)}%
                           </p>
                         </div>
                         <p className="text-xs text-muted-foreground">{formatDate(visit.created_at)}</p>
@@ -341,7 +368,6 @@ export default function DocumentDetailPage() {
         </div>
       </div>
 
-      {/* Create Link Modal */}
       <Modal
         open={createLinkOpen}
         onOpenChange={setCreateLinkOpen}
@@ -353,7 +379,7 @@ export default function DocumentDetailPage() {
           <Input
             label="Link Name"
             value={linkName}
-            onChange={(e) => setLinkName(e.target.value)}
+            onChange={(event) => setLinkName(event.target.value)}
             placeholder="e.g., Investor Deck - Series A"
           />
 
@@ -376,7 +402,7 @@ export default function DocumentDetailPage() {
                 label="Password"
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(event) => setPassword(event.target.value)}
                 placeholder="Enter a password"
               />
             )}
@@ -391,7 +417,7 @@ export default function DocumentDetailPage() {
                 <label className="text-sm font-medium text-muted-foreground">NDA Text</label>
                 <textarea
                   value={ndaText}
-                  onChange={(e) => setNdaText(e.target.value)}
+                  onChange={(event) => setNdaText(event.target.value)}
                   className="mt-1.5 w-full bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted resize-none h-24 focus:outline-none focus:ring-2 focus:ring-accent"
                   placeholder="Enter NDA agreement text..."
                 />
@@ -405,13 +431,13 @@ export default function DocumentDetailPage() {
               checked={enableWatermark}
               onCheckedChange={setEnableWatermark}
               label="Dynamic Watermark"
-              description="Overlay viewer's email and timestamp on each page"
+              description="Overlay viewer email, IP address, and timestamp on each page"
             />
             <Toggle
               checked={allowDownload}
               onCheckedChange={setAllowDownload}
               label="Allow Download"
-              description="Let viewers download the original file"
+              description="Let viewers download the document through the gated viewer route"
             />
           </div>
 
@@ -421,19 +447,31 @@ export default function DocumentDetailPage() {
               label="Expiration Date"
               type="datetime-local"
               value={expiresAt}
-              onChange={(e) => setExpiresAt(e.target.value)}
+              onChange={(event) => setExpiresAt(event.target.value)}
             />
             <Input
               label="Allowed Emails (comma-separated)"
               value={allowedEmails}
-              onChange={(e) => setAllowedEmails(e.target.value)}
+              onChange={(event) => setAllowedEmails(event.target.value)}
               placeholder="user@company.com, team@org.com"
             />
             <Input
               label="Blocked Emails (comma-separated)"
               value={blockedEmails}
-              onChange={(e) => setBlockedEmails(e.target.value)}
+              onChange={(event) => setBlockedEmails(event.target.value)}
               placeholder="block@competitor.com"
+            />
+            <Input
+              label="Allowed Domains (comma-separated)"
+              value={allowedDomains}
+              onChange={(event) => setAllowedDomains(event.target.value)}
+              placeholder="vcfirm.com, diligence.io"
+            />
+            <Input
+              label="Blocked Domains (comma-separated)"
+              value={blockedDomains}
+              onChange={(event) => setBlockedDomains(event.target.value)}
+              placeholder="competitor.com"
             />
           </div>
 
@@ -442,7 +480,7 @@ export default function DocumentDetailPage() {
               Cancel
             </Button>
             <Button onClick={createLink} loading={creatingLink}>
-              <Link2 size={16} />
+              <Plus size={16} />
               Create Link
             </Button>
           </div>

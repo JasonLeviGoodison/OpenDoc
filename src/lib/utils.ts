@@ -1,5 +1,8 @@
 import { clsx, type ClassValue } from 'clsx';
+import { customAlphabet } from 'nanoid';
 import { twMerge } from 'tailwind-merge';
+
+const secureLinkId = customAlphabet('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 10);
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -20,12 +23,11 @@ export function formatDuration(seconds: number) {
 }
 
 export function generateLinkId(length = 10) {
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let result = '';
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  if (length === 10) {
+    return secureLinkId();
   }
-  return result;
+
+  return customAlphabet('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', length)();
 }
 
 export function truncate(str: string, length: number) {

@@ -1,18 +1,12 @@
-import type { Metadata } from "next";
-import { Manrope } from "next/font/google";
-import { ClerkProvider } from "@clerk/nextjs";
-import { dark } from "@clerk/themes";
-import "./globals.css";
-
-const manrope = Manrope({
-  variable: "--font-manrope",
-  subsets: ["latin"],
-  display: "swap",
-});
+import type { Metadata } from 'next';
+import { ClerkProvider } from '@clerk/nextjs';
+import { dark } from '@clerk/themes';
+import './globals.css';
 
 export const metadata: Metadata = {
-  title: "OpenDoc — Secure Document Sharing & Analytics",
-  description: "Share documents securely with page-level analytics, access controls, virtual data rooms, and e-signatures.",
+  title: 'OpenDoc — Secure Document Sharing & Analytics',
+  description:
+    'Share documents securely with page-level analytics, access controls, NDA capture, and virtual data rooms.',
 };
 
 export default function RootLayout({
@@ -61,7 +55,7 @@ export default function RootLayout({
         },
       }}
     >
-      <html lang="en" className={`${manrope.variable} h-full antialiased dark`} style={{ colorScheme: 'dark' }}>
+      <html lang="en" className="h-full antialiased dark" style={{ colorScheme: 'dark' }}>
         <body className="min-h-full flex flex-col bg-background text-foreground">
           {children}
         </body>

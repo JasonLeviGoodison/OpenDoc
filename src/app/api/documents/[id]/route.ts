@@ -1,50 +1,81 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 import { db } from '@/db';
 import { documents } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
+import { serializeDocument } from '@/lib/serializers';
+import { requireUserId, RouteError, toErrorResponse } from '@/lib/server/auth';
+import { parseDocumentPatchBody, ValidationError } from '@/lib/validators';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  try {
+    const userId = await requireUserId();
+    const { id } = await params;
 
-  const { id } = await params;
+    const [row] = await db
+      .select()
+      .from(documents)
+      .where(and(eq(documents.id, id), eq(documents.userId, userId)));
 
-  const [row] = await db
-    .select()
-    .from(documents)
-    .where(and(eq(documents.id, id), eq(documents.userId, userId)));
+    if (!row) {
+      throw new RouteError('Not found', 404);
+    }
 
-  if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  return NextResponse.json(row);
+    return NextResponse.json(serializeDocument(row));
+  } catch (error) {
+    return toErrorResponse(error);
+  }
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  try {
+    const userId = await requireUserId();
+    const { id } = await params;
+    const updates = parseDocumentPatchBody(await req.json());
 
-  const { id } = await params;
-  const body = await req.json();
+    if (updates.name === null) {
+      throw new ValidationError('name cannot be empty.');
+    }
 
-  const [row] = await db
-    .update(documents)
-    .set({ ...body, updatedAt: new Date() })
-    .where(and(eq(documents.id, id), eq(documents.userId, userId)))
-    .returning();
+    if (Object.keys(updates).length === 0) {
+      throw new RouteError('No fields to update.', 400);
+    }
 
-  if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  return NextResponse.json(row);
+    const [row] = await db
+      .update(documents)
+      .set({
+        ...(updates.folderId !== undefined ? { folderId: updates.folderId } : {}),
+        ...(updates.name !== undefined ? { name: updates.name } : {}),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(documents.id, id), eq(documents.userId, userId)))
+      .returning();
+
+    if (!row) {
+      throw new RouteError('Not found', 404);
+    }
+
+    return NextResponse.json(serializeDocument(row));
+  } catch (error) {
+    return toErrorResponse(error);
+  }
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  try {
+    const userId = await requireUserId();
+    const { id } = await params;
 
-  const { id } = await params;
+    const [row] = await db
+      .delete(documents)
+      .where(and(eq(documents.id, id), eq(documents.userId, userId)))
+      .returning({ id: documents.id });
 
-  await db
-    .delete(documents)
-    .where(and(eq(documents.id, id), eq(documents.userId, userId)));
+    if (!row) {
+      throw new RouteError('Not found', 404);
+    }
 
-  return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return toErrorResponse(error);
+  }
 }
