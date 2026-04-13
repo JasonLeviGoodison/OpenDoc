@@ -71,6 +71,32 @@ export interface PageView {
   left_at: string | null;
 }
 
+export interface DocumentPageAnalyticsEntry {
+  last_viewed_at: string | null;
+  page_number: number;
+  total_duration: number;
+  total_views: number;
+  unique_visits: number;
+}
+
+export interface DocumentPageActivity {
+  duration: number;
+  entered_at: string | null;
+  id: string;
+  left_at: string | null;
+  page_number: number;
+  visit_id: string;
+  visitor_email: string | null;
+  visitor_name: string | null;
+}
+
+export interface DocumentPageAnalytics {
+  file_type: string;
+  page_analytics: DocumentPageAnalyticsEntry[];
+  page_count: number;
+  recent_activity: DocumentPageActivity[];
+}
+
 export interface Space {
   id: string;
   user_id: string;

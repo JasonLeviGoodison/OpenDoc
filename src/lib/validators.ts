@@ -284,14 +284,19 @@ export function parseVisitPatchBody(body: unknown) {
 export function parsePageViewBody(body: unknown) {
   const record = asObject(body);
   const pageNumber = optionalNumber(record.page_number, 'page_number');
+  const duration = optionalNumber(record.duration, 'duration') ?? 0;
 
   if (!pageNumber || pageNumber < 1) {
     throw new ValidationError('page_number must be a positive integer.');
   }
 
+  if (duration < 0) {
+    throw new ValidationError('duration must be zero or greater.');
+  }
+
   return {
     documentId: requiredString(record.document_id, 'document_id', { maxLength: 64 }),
-    duration: optionalNumber(record.duration, 'duration') ?? 0,
+    duration,
     pageNumber,
     visitId: requiredString(record.visit_id, 'visit_id', { maxLength: 64 }),
   };

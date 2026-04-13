@@ -15,9 +15,14 @@ export async function POST(req: NextRequest) {
       throw new RouteError('Visit token is invalid.', 401);
     }
 
+    const leftAt = new Date();
+    const enteredAt = new Date(leftAt.getTime() - body.duration * 1000);
+
     await db.insert(pageViews).values({
       documentId: body.documentId,
       duration: body.duration,
+      enteredAt,
+      leftAt,
       pageNumber: Math.round(body.pageNumber),
       visitId: body.visitId,
     });

@@ -28,14 +28,15 @@ import { Modal } from '@/components/ui/modal';
 import { StatsCard } from '@/components/ui/stats-card';
 import { Toggle } from '@/components/ui/toggle';
 import { apiFetchJson } from '@/lib/api-client';
-import type { Document, DocumentLink, Visit } from '@/lib/types';
-import { formatDate, formatDuration } from '@/lib/utils';
+import type { Document, DocumentLink, DocumentPageAnalytics, Visit } from '@/lib/types';
+import { formatDate, formatDateTime, formatDuration } from '@/lib/utils';
 
 export default function DocumentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useUser();
   const [document, setDocument] = useState<Document | null>(null);
   const [links, setLinks] = useState<DocumentLink[]>([]);
+  const [pageAnalytics, setPageAnalytics] = useState<DocumentPageAnalytics | null>(null);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [loading, setLoading] = useState(true);
   const [createLinkOpen, setCreateLinkOpen] = useState(false);
@@ -63,19 +64,22 @@ export default function DocumentDetailPage() {
     setLoading(true);
 
     try {
-      const [documentRow, linkRows, visitRows] = await Promise.all([
+      const [documentRow, linkRows, visitRows, pageAnalyticsRow] = await Promise.all([
         apiFetchJson<Document>(`/api/documents/${id}`),
         apiFetchJson<DocumentLink[]>(`/api/share-links?documentId=${id}`),
         apiFetchJson<Visit[]>(`/api/visits?documentId=${id}`),
+        apiFetchJson<DocumentPageAnalytics>(`/api/documents/${id}/page-analytics`),
       ]);
 
       setDocument(documentRow);
       setLinks(linkRows);
+      setPageAnalytics(pageAnalyticsRow);
       setVisits(visitRows);
     } catch (error) {
       console.error('Error loading document details:', error);
       setDocument(null);
       setLinks([]);
+      setPageAnalytics(null);
       setVisits([]);
     } finally {
       setLoading(false);
@@ -196,6 +200,22 @@ export default function DocumentDetailPage() {
         visits.reduce((acc, visit) => acc + (visit.completion_rate || 0), 0) / visits.length,
       )
     : 0;
+  const pageAnalyticsByNumber = new Map(
+    (pageAnalytics?.page_analytics ?? []).map((entry) => [entry.page_number, entry]),
+  );
+  const pageRows = Array.from({ length: pageAnalytics?.page_count ?? document.page_count }, (_, index) => {
+    const pageNumber = index + 1;
+    const entry = pageAnalyticsByNumber.get(pageNumber);
+
+    return {
+      last_viewed_at: entry?.last_viewed_at ?? null,
+      page_number: pageNumber,
+      total_duration: entry?.total_duration ?? 0,
+      total_views: entry?.total_views ?? 0,
+      unique_visits: entry?.unique_visits ?? 0,
+    };
+  });
+  const maxPageDuration = Math.max(...pageRows.map((page) => page.total_duration), 1);
 
   return (
     <div>
@@ -361,6 +381,98 @@ export default function DocumentDetailPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid lg:grid-cols-3 gap-6">
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-bold text-foreground uppercase tracking-wide">
+                  Page Engagement
+                </h2>
+                <Badge>{pageRows.length} page{pageRows.length !== 1 ? 's' : ''}</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {document.file_type !== 'pdf' ? (
+                <div className="border-b border-border bg-card-hover px-6 py-3 text-xs text-muted-foreground">
+                  Accurate page analytics are currently available for the in-app PDF viewer. Office previews keep visit-level analytics, but not trustworthy slide-level tracking.
+                </div>
+              ) : null}
+
+              {pageRows.length === 0 ? (
+                <div className="py-12 text-center text-sm text-muted-foreground">
+                  No page analytics yet.
+                </div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {pageRows.map((page) => (
+                    <div key={page.page_number} className="px-6 py-4">
+                      <div className="mb-2 flex items-center justify-between gap-4">
+                        <div>
+                          <p className="text-sm font-medium text-foreground">
+                            Page {page.page_number}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {page.unique_visits} viewer{page.unique_visits !== 1 ? 's' : ''} · {page.total_views} tracked session{page.total_views !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-medium text-foreground">
+                            {formatDuration(page.total_duration)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {page.last_viewed_at ? `Last viewed ${formatDateTime(page.last_viewed_at)}` : 'No views yet'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-card-hover">
+                        <div
+                          className="h-full rounded-full bg-accent"
+                          style={{ width: `${Math.max((page.total_duration / maxPageDuration) * 100, page.total_duration > 0 ? 6 : 0)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <h2 className="text-sm font-bold text-foreground uppercase tracking-wide">
+                Recent Page Activity
+              </h2>
+            </CardHeader>
+            <CardContent className="p-0">
+              {pageAnalytics?.recent_activity.length ? (
+                <div className="divide-y divide-border">
+                  {pageAnalytics.recent_activity.map((activity) => (
+                    <div key={activity.id} className="px-6 py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium text-foreground">
+                            {activity.visitor_email || activity.visitor_name || 'Anonymous'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Page {activity.page_number} · {formatDuration(activity.duration)}
+                          </p>
+                        </div>
+                        <p className="text-right text-xs text-muted-foreground">
+                          {activity.left_at ? formatDateTime(activity.left_at) : activity.entered_at ? formatDateTime(activity.entered_at) : ''}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-12 text-center text-sm text-muted-foreground">
+                  No page-level activity yet.
                 </div>
               )}
             </CardContent>

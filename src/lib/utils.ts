@@ -16,6 +16,15 @@ export function formatDate(date: string | Date) {
   });
 }
 
+export function formatDateTime(date: string | Date) {
+  return new Date(date).toLocaleString('en-US', {
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    month: 'short',
+  });
+}
+
 export function formatDuration(seconds: number) {
   if (seconds < 60) return `${Math.round(seconds)}s`;
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;

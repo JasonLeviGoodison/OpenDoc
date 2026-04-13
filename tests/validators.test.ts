@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   ValidationError,
   parseDocumentCreateBody,
+  parsePageViewBody,
   parseShareLinkBody,
   parseUploadRequestBody,
   parseVisitPatchBody,
@@ -91,4 +92,33 @@ test('parseVisitPatchBody preserves omitted fields', () => {
   assert.deepEqual(parsed, {
     completionRate: 88,
   });
+});
+
+test('parsePageViewBody accepts valid page timing payloads', () => {
+  const parsed = parsePageViewBody({
+    document_id: 'doc_123',
+    duration: 4.25,
+    page_number: 3,
+    visit_id: 'visit_123',
+  });
+
+  assert.deepEqual(parsed, {
+    documentId: 'doc_123',
+    duration: 4.25,
+    pageNumber: 3,
+    visitId: 'visit_123',
+  });
+});
+
+test('parsePageViewBody rejects negative durations', () => {
+  assert.throws(
+    () =>
+      parsePageViewBody({
+        document_id: 'doc_123',
+        duration: -1,
+        page_number: 1,
+        visit_id: 'visit_123',
+      }),
+    ValidationError,
+  );
 });

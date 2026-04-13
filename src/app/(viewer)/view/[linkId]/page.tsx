@@ -1,5 +1,6 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
 import {
@@ -26,6 +27,21 @@ import {
   isOfficeEmbedViewerFile,
   isPdfViewerFile,
 } from '@/lib/viewer';
+
+const PdfDocumentViewer = dynamic(
+  () =>
+    import('@/components/viewer/pdf-document-viewer').then((module) => ({
+      default: module.PdfDocumentViewer,
+    })),
+  {
+    loading: () => (
+      <div className="flex h-full items-center justify-center p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent" />
+      </div>
+    ),
+    ssr: false,
+  },
+);
 
 interface SharedDocumentSummary {
   file_type: string;
@@ -101,9 +117,15 @@ export default function ViewerPage() {
   const [visitId, setVisitId] = useState<string | null>(null);
   const [visitToken, setVisitToken] = useState<string | null>(null);
   const [ndaAccepted, setNdaAccepted] = useState(false);
+  const [pendingDocumentId, setPendingDocumentId] = useState<string | null>(null);
   const [viewerIp, setViewerIp] = useState<string | null>(null);
   const [viewerToken, setViewerToken] = useState<string | null>(null);
-  const pageStartTimeRef = useRef(0);
+  const [viewerVisible, setViewerVisible] = useState(true);
+  const pageStartTimeRef = useRef<number | null>(null);
+  const visitStartTimeRef = useRef<number | null>(null);
+  const trackedVisitDurationRef = useRef(0);
+  const visitDocumentIdRef = useRef<string | null>(null);
+  const viewedPagesRef = useRef(new Set<number>());
 
   const currentDocuments = getViewerDocuments(linkData);
   const currentDocument =
@@ -113,8 +135,20 @@ export default function ViewerPage() {
   const isOfficePreviewDocument = isOfficeEmbedViewerFile(currentDocument?.file_type);
   const viewerOrigin = typeof window === 'undefined' ? null : window.location.origin;
 
+  const resetTrackedVisitState = useCallback(() => {
+    pageStartTimeRef.current = null;
+    trackedVisitDurationRef.current = 0;
+    visitStartTimeRef.current = null;
+    viewedPagesRef.current = new Set();
+  }, []);
+
   const startViewing = useCallback(
-    async (sessionToken: string, acceptedNda: boolean, resolvedLinkData?: LinkData) => {
+    async (
+      sessionToken: string,
+      acceptedNda: boolean,
+      resolvedLinkData?: LinkData,
+      requestedDocumentId?: string | null,
+    ) => {
       const activeLink = resolvedLinkData ?? linkData;
 
       if (!activeLink) {
@@ -122,10 +156,11 @@ export default function ViewerPage() {
       }
 
       const firstDocument = getViewerDocuments(activeLink)[0] ?? null;
-      const activeDocumentId = currentDocumentId ?? firstDocument?.id ?? null;
+      const activeDocumentId = requestedDocumentId ?? currentDocumentId ?? firstDocument?.id ?? null;
 
       try {
         setViewerToken(sessionToken);
+        resetTrackedVisitState();
 
         const visit = await apiFetchJson<VisitSession>('/api/visits', {
           body: JSON.stringify({
@@ -139,16 +174,18 @@ export default function ViewerPage() {
           method: 'POST',
         });
 
+        visitDocumentIdRef.current = activeDocumentId;
+        setCurrentDocumentId(activeDocumentId);
+        setCurrentPage(1);
         setVisitId(visit.id);
         setVisitToken(visit.visit_token);
         setViewerIp(visit.ip_address);
-        pageStartTimeRef.current = Date.now();
         setGate('viewer');
       } catch (requestError) {
         setError(requestError instanceof Error ? requestError.message : 'Failed to start viewer.');
       }
     },
-    [currentDocumentId, email, linkData],
+    [currentDocumentId, email, linkData, resetTrackedVisitState],
   );
 
   const authorizeViewer = useCallback(
@@ -163,12 +200,13 @@ export default function ViewerPage() {
           method: 'POST',
         });
 
-        await startViewing(response.viewer_token, acceptedNda, resolvedLinkData);
+        const firstDocument = getViewerDocuments(resolvedLinkData ?? linkData)[0] ?? null;
+        await startViewing(response.viewer_token, acceptedNda, resolvedLinkData, firstDocument?.id ?? null);
       } catch (requestError) {
         setError(requestError instanceof Error ? requestError.message : 'Verification failed.');
       }
     },
-    [email, linkId, password, startViewing],
+    [email, linkData, linkId, password, startViewing],
   );
 
   const loadLink = useEffectEvent(async () => {
@@ -177,7 +215,8 @@ export default function ViewerPage() {
       setVisitId(null);
       setVisitToken(null);
       setViewerIp(null);
-      pageStartTimeRef.current = 0;
+      visitDocumentIdRef.current = null;
+      resetTrackedVisitState();
 
       const data = await apiFetchJson<LinkData>(`/api/links/${linkId}`);
       const documents = getViewerDocuments(data);
@@ -218,6 +257,17 @@ export default function ViewerPage() {
       setGate('disabled');
     }
   });
+
+  useEffect(() => {
+    const updateVisibility = () => {
+      setViewerVisible(document.visibilityState === 'visible');
+    };
+
+    updateVisibility();
+    document.addEventListener('visibilitychange', updateVisibility);
+
+    return () => document.removeEventListener('visibilitychange', updateVisibility);
+  }, []);
 
   useEffect(() => {
     void loadLink();
@@ -267,62 +317,140 @@ export default function ViewerPage() {
     await authorizeViewer(true);
   }
 
-  useEffect(() => {
-    if (gate !== 'viewer' || !visitId || !visitToken || !currentDocumentId || pageStartTimeRef.current === 0) {
+  const flushPageView = useCallback((keepalive = false) => {
+    if (!visitId || !visitToken || !currentDocumentId || !isPdfDocument || pageStartTimeRef.current === null) {
       return;
     }
+
+    const startedAt = pageStartTimeRef.current;
+    pageStartTimeRef.current = null;
+    const duration = Math.max(0, (Date.now() - startedAt) / 1000);
+
+    if (duration < 0.25) {
+      return;
+    }
+
+    void fetch('/api/visits/page-view', {
+      body: JSON.stringify({
+        document_id: currentDocumentId,
+        duration,
+        page_number: currentPage,
+        visit_id: visitId,
+      }),
+      headers: {
+        'Content-Type': 'application/json',
+        'x-opendoc-visit-token': visitToken,
+      },
+      keepalive,
+      method: 'POST',
+    });
+  }, [currentDocumentId, currentPage, isPdfDocument, visitId, visitToken]);
+
+  const syncVisitSnapshot = useCallback((keepalive = false) => {
+    if (!visitId || !visitToken || !visitDocumentIdRef.current) {
+      return;
+    }
+
+    const inFlightDuration =
+      visitStartTimeRef.current === null ? 0 : Math.max(0, (Date.now() - visitStartTimeRef.current) / 1000);
+
+    const payload: Record<string, number> = {
+      duration: trackedVisitDurationRef.current + inFlightDuration,
+    };
+
+    if (isPdfDocument && currentDocumentId === visitDocumentIdRef.current) {
+      const pageCountViewed = viewedPagesRef.current.size;
+      payload.completion_rate = (pageCountViewed / Math.max(totalPages, 1)) * 100;
+      payload.page_count_viewed = pageCountViewed;
+    }
+
+    void fetch(`/api/visits/${visitId}`, {
+      body: JSON.stringify(payload),
+      headers: {
+        'Content-Type': 'application/json',
+        'x-opendoc-visit-token': visitToken,
+      },
+      keepalive,
+      method: 'PATCH',
+    });
+  }, [currentDocumentId, isPdfDocument, totalPages, visitId, visitToken]);
+
+  const finalizeVisitTracking = useCallback((keepalive = false) => {
+    if (visitStartTimeRef.current !== null) {
+      trackedVisitDurationRef.current += Math.max(0, (Date.now() - visitStartTimeRef.current) / 1000);
+      visitStartTimeRef.current = null;
+    }
+
+    flushPageView(keepalive);
+    syncVisitSnapshot(keepalive);
+  }, [flushPageView, syncVisitSnapshot]);
+
+  const handleDocumentSelect = useCallback(
+    async (documentId: string) => {
+      if (documentId === currentDocumentId) {
+        return;
+      }
+
+      setError('');
+      setPendingDocumentId(documentId);
+
+      try {
+        finalizeVisitTracking(false);
+
+        if (!viewerToken) {
+          setCurrentDocumentId(documentId);
+          setCurrentPage(1);
+          return;
+        }
+
+        await startViewing(viewerToken, ndaAccepted, linkData ?? undefined, documentId);
+      } finally {
+        setPendingDocumentId(null);
+      }
+    },
+    [currentDocumentId, finalizeVisitTracking, linkData, ndaAccepted, startViewing, viewerToken],
+  );
+
+  useEffect(() => {
+    if (gate !== 'viewer' || !viewerVisible || !visitId || !visitToken) {
+      return;
+    }
+
+    visitStartTimeRef.current = Date.now();
 
     return () => {
-      const duration = Math.max(0, (Date.now() - pageStartTimeRef.current) / 1000);
-
-      void fetch('/api/visits/page-view', {
-        body: JSON.stringify({
-          document_id: currentDocumentId,
-          duration,
-          page_number: currentPage,
-          visit_id: visitId,
-        }),
-        headers: {
-          'Content-Type': 'application/json',
-          'x-opendoc-visit-token': visitToken,
-        },
-        method: 'POST',
-      });
+      if (visitStartTimeRef.current !== null) {
+        trackedVisitDurationRef.current += Math.max(0, (Date.now() - visitStartTimeRef.current) / 1000);
+        visitStartTimeRef.current = null;
+      }
     };
-  }, [currentDocumentId, currentPage, gate, visitId, visitToken]);
+  }, [gate, viewerVisible, visitId, visitToken]);
 
   useEffect(() => {
-    if (gate !== 'viewer') {
+    if (gate !== 'viewer' || !viewerVisible || !visitId || !visitToken || !currentDocumentId || !isPdfDocument) {
       return;
     }
 
+    viewedPagesRef.current.add(currentPage);
     pageStartTimeRef.current = Date.now();
-  }, [currentDocumentId, currentPage, gate]);
+
+    return () => flushPageView(false);
+  }, [currentDocumentId, currentPage, flushPageView, gate, isPdfDocument, viewerVisible, visitId, visitToken]);
 
   useEffect(() => {
     if (!visitId || !visitToken) {
       return;
     }
 
-    const interval = setInterval(() => {
-      void fetch(`/api/visits/${visitId}`, {
-        body: JSON.stringify({
-          completion_rate: (currentPage / Math.max(totalPages, 1)) * 100,
-          page_count_viewed: currentPage,
-        }),
-        headers: {
-          'Content-Type': 'application/json',
-          'x-opendoc-visit-token': visitToken,
-        },
-        method: 'PATCH',
-      });
+    const interval = window.setInterval(() => {
+      syncVisitSnapshot(false);
     }, 10000);
 
-    return () => clearInterval(interval);
-  }, [currentPage, totalPages, visitId, visitToken]);
+    return () => window.clearInterval(interval);
+  }, [syncVisitSnapshot, visitId, visitToken]);
 
   useEffect(() => {
-    if (gate !== 'viewer') {
+    if (gate !== 'viewer' || !isPdfDocument) {
       return;
     }
 
@@ -338,7 +466,24 @@ export default function ViewerPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [gate, totalPages]);
+  }, [gate, isPdfDocument, totalPages]);
+
+  useEffect(() => {
+    if (gate !== 'viewer') {
+      return;
+    }
+
+    const handlePageHide = () => {
+      finalizeVisitTracking(true);
+    };
+
+    window.addEventListener('pagehide', handlePageHide);
+
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+      finalizeVisitTracking(false);
+    };
+  }, [finalizeVisitTracking, gate]);
 
   const documentSource =
     gate === 'viewer' && currentDocument
@@ -349,15 +494,11 @@ export default function ViewerPage() {
             token: isOfficePreviewDocument ? viewerToken : null,
           });
 
-          if (isPdfDocument) {
-            return `${documentPath}#page=${currentPage}&toolbar=0&navpanes=0`;
-          }
-
           if (isOfficePreviewDocument && viewerOrigin) {
             return buildOfficeEmbedUrl(`${viewerOrigin}${documentPath}`);
           }
 
-          return null;
+          return documentPath;
         })()
       : null;
 
@@ -532,7 +673,9 @@ export default function ViewerPage() {
           ) : (
             <div className="flex items-center gap-2 bg-background rounded-lg border border-border px-3 py-1.5">
               <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                {isOfficePreviewDocument ? `${currentDocument.file_type} preview` : 'Secure preview'}
+                {isOfficePreviewDocument
+                  ? `${currentDocument.file_type} preview · page analytics unavailable`
+                  : 'Secure preview'}
               </span>
             </div>
           )}
@@ -589,48 +732,59 @@ export default function ViewerPage() {
               {currentDocuments.map((document) => (
                 <button
                   key={document.id}
+                  disabled={pendingDocumentId === document.id}
                   onClick={() => {
-                    setCurrentDocumentId(document.id);
-                    setCurrentPage(1);
-                    pageStartTimeRef.current = Date.now();
+                    void handleDocumentSelect(document.id);
                   }}
                   className={cn(
-                    'w-full text-left rounded-lg px-3 py-2 transition-colors',
+                    'w-full text-left rounded-lg px-3 py-2 transition-colors disabled:opacity-60',
                     currentDocumentId === document.id
                       ? 'bg-accent-muted text-accent'
                       : 'text-muted-foreground hover:text-foreground hover:bg-card-hover',
                   )}
                 >
                   <p className="text-sm font-medium">{document.name}</p>
-                  <p className="text-xs">{document.page_count} pages</p>
+                  <p className="text-xs">
+                    {document.page_count} pages
+                    {pendingDocumentId === document.id ? ' · opening...' : ''}
+                  </p>
                 </button>
               ))}
             </div>
           </aside>
         ) : null}
 
-        <div className="flex-1 overflow-auto flex items-start justify-center p-8">
-          <div
-            className="relative bg-white rounded-lg shadow-2xl"
-            style={{ transform: `scale(${zoom})`, transformOrigin: 'top center' }}
-          >
-            {documentSource ? (
-              <iframe
-                src={documentSource}
-                className={cn('rounded-lg', isPdfDocument && 'w-[800px] h-[1035px]')}
-                style={
-                  isPdfDocument
-                    ? { border: 'none' }
-                    : {
-                        border: 'none',
-                        height: 'calc(100vh - 12rem)',
-                        minHeight: '640px',
-                        width: 'min(1100px, 85vw)',
-                      }
-                }
-                title={currentDocument.name}
+        <div className="relative flex-1 overflow-hidden bg-[#0f1013]">
+          {documentSource ? (
+            isPdfDocument ? (
+              <PdfDocumentViewer
+                currentPage={currentPage}
+                fileUrl={documentSource}
+                onPageChange={setCurrentPage}
+                zoom={zoom}
+                key={currentDocument.id}
               />
             ) : (
+              <div className="flex h-full items-start justify-center overflow-auto p-8">
+                <div
+                  className="relative rounded-lg bg-white shadow-2xl"
+                  style={{ transform: `scale(${zoom})`, transformOrigin: 'top center' }}
+                >
+                  <iframe
+                    src={documentSource}
+                    style={{
+                      border: 'none',
+                      height: 'calc(100vh - 12rem)',
+                      minHeight: '640px',
+                      width: 'min(1100px, 85vw)',
+                    }}
+                    title={currentDocument.name}
+                  />
+                </div>
+              </div>
+            )
+          ) : (
+            <div className="flex h-full items-center justify-center p-8">
               <div className="flex min-h-[420px] w-[min(780px,85vw)] items-center justify-center rounded-lg border border-border bg-card px-8 py-12 text-center">
                 <div className="max-w-md space-y-3">
                   <p className="text-base font-semibold text-foreground">
@@ -638,25 +792,25 @@ export default function ViewerPage() {
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {isOfficePreviewDocument
-                      ? 'Your presentation is being opened in the embedded browser viewer.'
+                      ? 'This file opens in the embedded Office viewer. Accurate per-page analytics require a trackable PDF preview.'
                       : 'This file type cannot be rendered in the browser in the current build.'}
                   </p>
                 </div>
               </div>
-            )}
+            </div>
+          )}
 
-            {linkData?.enable_watermark && (
-              <div className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden rounded-lg">
-                <div className="rotate-[-30deg] opacity-[0.08] text-center">
-                  {[...Array(5)].map((_, index) => (
-                    <p key={index} className="text-2xl font-bold text-black whitespace-nowrap mb-24">
-                      {watermarkLabel} &nbsp;&middot;&nbsp; {watermarkLabel}
-                    </p>
-                  ))}
-                </div>
+          {linkData?.enable_watermark && (
+            <div className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden">
+              <div className="rotate-[-30deg] opacity-[0.08] text-center">
+                {[...Array(5)].map((_, index) => (
+                  <p key={index} className="text-2xl font-bold text-white whitespace-nowrap mb-24">
+                    {watermarkLabel} &nbsp;&middot;&nbsp; {watermarkLabel}
+                  </p>
+                ))}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
 
