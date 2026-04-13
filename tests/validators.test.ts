@@ -5,6 +5,7 @@ import {
   ValidationError,
   parseDocumentCreateBody,
   parseShareLinkBody,
+  parseUploadRequestBody,
   parseVisitPatchBody,
 } from '@/lib/validators';
 
@@ -21,6 +22,20 @@ test('parseDocumentCreateBody rejects absolute file URLs', () => {
       }),
     ValidationError,
   );
+});
+
+test('parseUploadRequestBody requires a filename and preserves metadata', () => {
+  const parsed = parseUploadRequestBody({
+    content_type: 'application/pdf',
+    file_name: 'deck.pdf',
+    file_size: 12345,
+  });
+
+  assert.deepEqual(parsed, {
+    contentType: 'application/pdf',
+    fileName: 'deck.pdf',
+    fileSize: 12345,
+  });
 });
 
 test('parseShareLinkBody normalizes access lists and accepts document links', () => {

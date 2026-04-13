@@ -163,6 +163,16 @@ export function parseDocumentPatchBody(body: unknown) {
   return updates;
 }
 
+export function parseUploadRequestBody(body: unknown) {
+  const record = asObject(body);
+
+  return {
+    contentType: optionalString(record.content_type, 'content_type', { maxLength: 160 }),
+    fileName: requiredString(record.file_name, 'file_name', { maxLength: 255 }),
+    fileSize: optionalNumber(record.file_size, 'file_size') ?? 0,
+  };
+}
+
 export function parseSpaceCreateBody(body: unknown) {
   const record = asObject(body);
 

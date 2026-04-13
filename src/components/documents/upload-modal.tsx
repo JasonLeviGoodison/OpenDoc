@@ -19,9 +19,11 @@ export function UploadModal({ open, onOpenChange, onUpload }: UploadModalProps) 
   const [name, setName] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadComplete, setUploadComplete] = useState(false);
+  const [error, setError] = useState('');
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     setFiles(acceptedFiles);
+    setError('');
     if (acceptedFiles.length > 0 && !name) {
       setName(acceptedFiles[0].name.replace(/\.[^/.]+$/, ''));
     }
@@ -45,6 +47,7 @@ export function UploadModal({ open, onOpenChange, onUpload }: UploadModalProps) 
   async function handleUpload() {
     if (files.length === 0 || !name) return;
     setUploading(true);
+    setError('');
     try {
       await onUpload(files, name);
       setUploadComplete(true);
@@ -53,9 +56,11 @@ export function UploadModal({ open, onOpenChange, onUpload }: UploadModalProps) 
         setFiles([]);
         setName('');
         setUploadComplete(false);
+        setError('');
       }, 1000);
     } catch (error) {
       console.error('Upload failed:', error);
+      setError(error instanceof Error ? error.message : 'Upload failed.');
     } finally {
       setUploading(false);
     }
@@ -121,6 +126,10 @@ export function UploadModal({ open, onOpenChange, onUpload }: UploadModalProps) 
           onChange={(e) => setName(e.target.value)}
           placeholder="Enter a name for this document"
         />
+
+        {error ? (
+          <p className="text-sm text-danger">{error}</p>
+        ) : null}
 
         {/* Actions */}
         <div className="flex justify-end gap-3 pt-2">
