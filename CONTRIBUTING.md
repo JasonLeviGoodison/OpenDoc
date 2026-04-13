@@ -12,7 +12,7 @@
 1. Install dependencies with `npm install`.
 2. Copy `.env.example` to `.env.local` and fill in valid values.
 3. Start the database and backing services you need.
-4. Run `npm run db:push`.
+4. Run `npm run db:migrate`.
 5. Start the app with `npm run dev`.
 
 ## Before Opening a PR

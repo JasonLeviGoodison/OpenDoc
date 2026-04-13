@@ -40,7 +40,7 @@ cp .env.example .env.local
 3. Apply your database schema and start the app:
 
 ```bash
-npm run db:push
+npm run db:migrate
 npm run dev
 ```
 
@@ -53,6 +53,7 @@ OpenDoc expects the variables in [.env.example](./.env.example).
 Required for local development:
 
 - `DATABASE_URL`
+- `MIGRATION_DATABASE_URL` (recommended when your app uses a pooled connection string)
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
@@ -72,8 +73,15 @@ npm run lint
 npm test
 npm run build
 npm run db:generate
-npm run db:push
+npm run db:migrate
 ```
+
+Deployment notes:
+
+- Drizzle migrations should use a direct Postgres connection, not the Supabase pooled URL on port `6543`.
+- Set `MIGRATION_DATABASE_URL` to your direct `5432` connection in production.
+- Builds auto-run `npm run db:migrate` on Vercel when `VERCEL_GIT_COMMIT_REF=main`.
+- On other platforms, set `MIGRATE_ON_BUILD=1` if you want the same behavior.
 
 ## Security Notes
 
