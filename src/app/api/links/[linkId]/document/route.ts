@@ -8,12 +8,16 @@ import { getLinkAvailability } from '@/lib/link-access';
 import { RouteError, toErrorResponse } from '@/lib/server/auth';
 import { verifySignedToken } from '@/lib/security';
 import { resolveStoredFileUrl } from '@/lib/storage';
+import { resolveViewerToken } from '@/lib/viewer';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ linkId: string }> }) {
   try {
     const { linkId } = await params;
-    const viewerToken =
-      req.cookies.get(VIEWER_COOKIE_NAME)?.value ?? req.headers.get('x-opendoc-viewer-token');
+    const viewerToken = resolveViewerToken({
+      cookieToken: req.cookies.get(VIEWER_COOKIE_NAME)?.value,
+      headerToken: req.headers.get('x-opendoc-viewer-token'),
+      queryToken: req.nextUrl.searchParams.get('token'),
+    });
     const tokenPayload = verifySignedToken(viewerToken);
 
     if (!tokenPayload || tokenPayload.scope !== 'viewer' || tokenPayload.linkId !== linkId) {

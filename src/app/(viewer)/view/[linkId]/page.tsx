@@ -20,6 +20,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { apiFetchJson } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
+import {
+  buildOfficeEmbedUrl,
+  buildViewerDocumentPath,
+  isOfficeEmbedViewerFile,
+  isPdfViewerFile,
+} from '@/lib/viewer';
 
 interface SharedDocumentSummary {
   file_type: string;
@@ -96,12 +102,16 @@ export default function ViewerPage() {
   const [visitToken, setVisitToken] = useState<string | null>(null);
   const [ndaAccepted, setNdaAccepted] = useState(false);
   const [viewerIp, setViewerIp] = useState<string | null>(null);
+  const [viewerToken, setViewerToken] = useState<string | null>(null);
   const pageStartTimeRef = useRef(0);
 
   const currentDocuments = getViewerDocuments(linkData);
   const currentDocument =
     currentDocuments.find((document) => document.id === currentDocumentId) ?? currentDocuments[0] ?? null;
   const totalPages = currentDocument?.page_count ?? 1;
+  const isPdfDocument = isPdfViewerFile(currentDocument?.file_type);
+  const isOfficePreviewDocument = isOfficeEmbedViewerFile(currentDocument?.file_type);
+  const viewerOrigin = typeof window === 'undefined' ? null : window.location.origin;
 
   const startViewing = useCallback(
     async (sessionToken: string, acceptedNda: boolean, resolvedLinkData?: LinkData) => {
@@ -115,6 +125,8 @@ export default function ViewerPage() {
       const activeDocumentId = currentDocumentId ?? firstDocument?.id ?? null;
 
       try {
+        setViewerToken(sessionToken);
+
         const visit = await apiFetchJson<VisitSession>('/api/visits', {
           body: JSON.stringify({
             document_id: activeDocumentId,
@@ -161,6 +173,12 @@ export default function ViewerPage() {
 
   const loadLink = useEffectEvent(async () => {
     try {
+      setViewerToken(null);
+      setVisitId(null);
+      setVisitToken(null);
+      setViewerIp(null);
+      pageStartTimeRef.current = 0;
+
       const data = await apiFetchJson<LinkData>(`/api/links/${linkId}`);
       const documents = getViewerDocuments(data);
       const firstDocument = documents[0] ?? null;
@@ -324,12 +342,32 @@ export default function ViewerPage() {
 
   const documentSource =
     gate === 'viewer' && currentDocument
-      ? `/api/links/${linkId}/document?documentId=${encodeURIComponent(currentDocument.id)}#page=${currentPage}&toolbar=0&navpanes=0`
+      ? (() => {
+          const documentPath = buildViewerDocumentPath({
+            documentId: currentDocument.id,
+            linkId,
+            token: isOfficePreviewDocument ? viewerToken : null,
+          });
+
+          if (isPdfDocument) {
+            return `${documentPath}#page=${currentPage}&toolbar=0&navpanes=0`;
+          }
+
+          if (isOfficePreviewDocument && viewerOrigin) {
+            return buildOfficeEmbedUrl(`${viewerOrigin}${documentPath}`);
+          }
+
+          return null;
+        })()
       : null;
 
   const downloadSource =
     gate === 'viewer' && currentDocument
-      ? `/api/links/${linkId}/document?documentId=${encodeURIComponent(currentDocument.id)}&download=1`
+      ? buildViewerDocumentPath({
+          documentId: currentDocument.id,
+          download: true,
+          linkId,
+        })
       : null;
 
   const watermarkLabel = [email || 'CONFIDENTIAL', viewerIp || 'IP HIDDEN', new Date().toLocaleString()].join(
@@ -471,25 +509,33 @@ export default function ViewerPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 bg-background rounded-lg border border-border px-2 py-1">
-            <button
-              onClick={() => setCurrentPage((page) => Math.max(page - 1, 1))}
-              disabled={currentPage <= 1}
-              className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30 cursor-pointer"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <span className="text-sm text-foreground px-2 min-w-[80px] text-center">
-              {currentPage} / {totalPages}
-            </span>
-            <button
-              onClick={() => setCurrentPage((page) => Math.min(page + 1, totalPages))}
-              disabled={currentPage >= totalPages}
-              className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30 cursor-pointer"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
+          {isPdfDocument ? (
+            <div className="flex items-center gap-1 bg-background rounded-lg border border-border px-2 py-1">
+              <button
+                onClick={() => setCurrentPage((page) => Math.max(page - 1, 1))}
+                disabled={currentPage <= 1}
+                className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30 cursor-pointer"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span className="text-sm text-foreground px-2 min-w-[80px] text-center">
+                {currentPage} / {totalPages}
+              </span>
+              <button
+                onClick={() => setCurrentPage((page) => Math.min(page + 1, totalPages))}
+                disabled={currentPage >= totalPages}
+                className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30 cursor-pointer"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 bg-background rounded-lg border border-border px-3 py-1.5">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                {isOfficePreviewDocument ? `${currentDocument.file_type} preview` : 'Secure preview'}
+              </span>
+            </div>
+          )}
 
           <div className="flex items-center gap-1 bg-background rounded-lg border border-border px-2 py-1">
             <button
@@ -568,13 +614,35 @@ export default function ViewerPage() {
             className="relative bg-white rounded-lg shadow-2xl"
             style={{ transform: `scale(${zoom})`, transformOrigin: 'top center' }}
           >
-            {documentSource && (
+            {documentSource ? (
               <iframe
                 src={documentSource}
-                className="w-[800px] h-[1035px] rounded-lg"
-                style={{ border: 'none' }}
+                className={cn('rounded-lg', isPdfDocument && 'w-[800px] h-[1035px]')}
+                style={
+                  isPdfDocument
+                    ? { border: 'none' }
+                    : {
+                        border: 'none',
+                        height: 'calc(100vh - 12rem)',
+                        minHeight: '640px',
+                        width: 'min(1100px, 85vw)',
+                      }
+                }
                 title={currentDocument.name}
               />
+            ) : (
+              <div className="flex min-h-[420px] w-[min(780px,85vw)] items-center justify-center rounded-lg border border-border bg-card px-8 py-12 text-center">
+                <div className="max-w-md space-y-3">
+                  <p className="text-base font-semibold text-foreground">
+                    {isOfficePreviewDocument ? 'Preparing in-browser preview' : 'Preview unavailable'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {isOfficePreviewDocument
+                      ? 'Your presentation is being opened in the embedded browser viewer.'
+                      : 'This file type cannot be rendered in the browser in the current build.'}
+                  </p>
+                </div>
+              </div>
             )}
 
             {linkData?.enable_watermark && (
@@ -592,22 +660,24 @@ export default function ViewerPage() {
         </div>
       </div>
 
-      <div className="h-20 bg-card/90 backdrop-blur-sm border-t border-border flex items-center px-4 gap-2 overflow-x-auto">
-        {[...Array(totalPages)].map((_, index) => (
-          <button
-            key={index}
-            onClick={() => setCurrentPage(index + 1)}
-            className={cn(
-              'flex-shrink-0 w-12 h-14 rounded-md border-2 flex items-center justify-center text-xs font-medium transition-all cursor-pointer',
-              currentPage === index + 1
-                ? 'border-accent bg-accent-muted text-accent'
-                : 'border-border bg-card-hover text-muted-foreground hover:border-border-hover',
-            )}
-          >
-            {index + 1}
-          </button>
-        ))}
-      </div>
+      {isPdfDocument && totalPages > 1 ? (
+        <div className="h-20 bg-card/90 backdrop-blur-sm border-t border-border flex items-center px-4 gap-2 overflow-x-auto">
+          {[...Array(totalPages)].map((_, index) => (
+            <button
+              key={index}
+              onClick={() => setCurrentPage(index + 1)}
+              className={cn(
+                'flex-shrink-0 w-12 h-14 rounded-md border-2 flex items-center justify-center text-xs font-medium transition-all cursor-pointer',
+                currentPage === index + 1
+                  ? 'border-accent bg-accent-muted text-accent'
+                  : 'border-border bg-card-hover text-muted-foreground hover:border-border-hover',
+              )}
+            >
+              {index + 1}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -373,6 +373,7 @@ export default function DocumentDetailPage() {
         onOpenChange={setCreateLinkOpen}
         title="Create Shareable Link"
         description="Configure how people access this document"
+        dismissible={false}
         size="lg"
       >
         <div className="space-y-5 max-h-[60vh] overflow-y-auto pr-2">
