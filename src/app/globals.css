@@ -41,7 +41,7 @@ html {
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-danger: var(--danger);
-  --font-sans: var(--font-manrope);
+  --font-sans: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
 }
 
 * {

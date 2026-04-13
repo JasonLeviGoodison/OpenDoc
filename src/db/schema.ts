@@ -1,4 +1,5 @@
 import {
+  type AnyPgColumn,
   pgTable,
   text,
   uuid,
@@ -57,7 +58,7 @@ export const folders = pgTable('folders', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
-  parentId: uuid('parent_id').references((): any => folders.id, { onDelete: 'cascade' }),
+  parentId: uuid('parent_id').references((): AnyPgColumn => folders.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 }, (t) => [

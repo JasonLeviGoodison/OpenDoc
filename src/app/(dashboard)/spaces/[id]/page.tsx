@@ -1,102 +1,111 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
+import { useUser } from '@clerk/nextjs';
+import {
+  ArrowLeft,
+  Check,
+  Copy,
+  ExternalLink,
+  FileText,
+  GripVertical,
+  Link2,
+  Plus,
+  Trash2,
+} from 'lucide-react';
+
 import { Header } from '@/components/dashboard/header';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Modal } from '@/components/ui/modal';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
-import {
-  Plus,
-  FileText,
-  ArrowLeft,
-  Link2,
-  Copy,
-  Check,
-  ExternalLink,
-  Trash2,
-  GripVertical,
-  FolderOpen,
-  Settings,
-} from 'lucide-react';
-import Link from 'next/link';
-import { useUser } from '@clerk/nextjs';
-import { supabase } from '@/lib/supabase';
-import { formatDate, generateLinkId } from '@/lib/utils';
-import type { Space, Document, DocumentLink } from '@/lib/types';
+import { Modal } from '@/components/ui/modal';
+import { apiFetchJson } from '@/lib/api-client';
+import type { Document, DocumentLink, Space } from '@/lib/types';
+import { formatDate } from '@/lib/utils';
+
+type SpaceDocument = Document & {
+  order_index: number;
+  space_doc_id: string;
+};
 
 export default function SpaceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useUser();
   const [space, setSpace] = useState<Space | null>(null);
-  const [spaceDocuments, setSpaceDocuments] = useState<(Document & { space_doc_id: string; order_index: number })[]>([]);
+  const [spaceDocuments, setSpaceDocuments] = useState<SpaceDocument[]>([]);
   const [allDocuments, setAllDocuments] = useState<Document[]>([]);
   const [links, setLinks] = useState<DocumentLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [addDocOpen, setAddDocOpen] = useState(false);
   const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
 
+  const loadData = useCallback(async () => {
+    if (!user || !id) {
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const [spaceRow, spaceDocumentRows, documentRows, linkRows] = await Promise.all([
+        apiFetchJson<Space>(`/api/spaces/${id}`),
+        apiFetchJson<SpaceDocument[]>(`/api/spaces/${id}/documents`),
+        apiFetchJson<Document[]>('/api/documents'),
+        apiFetchJson<DocumentLink[]>(`/api/share-links?spaceId=${id}`),
+      ]);
+
+      setSpace(spaceRow);
+      setSpaceDocuments(spaceDocumentRows);
+      setAllDocuments(documentRows);
+      setLinks(linkRows);
+    } catch (error) {
+      console.error('Error loading space details:', error);
+      setSpace(null);
+      setSpaceDocuments([]);
+      setAllDocuments([]);
+      setLinks([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [id, user]);
+
   useEffect(() => {
-    if (user && id) loadData();
-  }, [user, id]);
+    if (!user || !id) {
+      return;
+    }
 
-  async function loadData() {
-    const [spaceRes, spaceDocsRes, allDocsRes, linksRes] = await Promise.all([
-      supabase.from('spaces').select('*').eq('id', id).single(),
-      supabase
-        .from('space_documents')
-        .select('*, documents(*)')
-        .eq('space_id', id)
-        .order('order_index', { ascending: true }),
-      supabase.from('documents').select('*').eq('user_id', user!.id),
-      supabase.from('document_links').select('*').eq('space_id', id).order('created_at', { ascending: false }),
-    ]);
+    void loadData();
+  }, [id, loadData, user]);
 
-    setSpace(spaceRes.data);
-    setSpaceDocuments(
-      (spaceDocsRes.data || []).map((sd: any) => ({
-        ...sd.documents,
-        space_doc_id: sd.id,
-        order_index: sd.order_index,
-      }))
-    );
-    setAllDocuments(allDocsRes.data || []);
-    setLinks(linksRes.data || []);
-    setLoading(false);
-  }
-
-  async function addDocument(docId: string) {
-    const maxOrder = spaceDocuments.length > 0
-      ? Math.max(...spaceDocuments.map(d => d.order_index))
-      : -1;
-
-    await supabase.from('space_documents').insert({
-      space_id: id,
-      document_id: docId,
-      order_index: maxOrder + 1,
+  async function addDocument(documentId: string) {
+    await apiFetchJson(`/api/spaces/${id}/documents`, {
+      body: JSON.stringify({ document_id: documentId }),
+      method: 'POST',
     });
-
-    loadData();
     setAddDocOpen(false);
+    await loadData();
   }
 
-  async function removeDocument(spaceDocId: string) {
-    await supabase.from('space_documents').delete().eq('id', spaceDocId);
-    loadData();
+  async function removeDocument(spaceDocumentId: string) {
+    await apiFetchJson<{ success: boolean }>(`/api/spaces/${id}/documents/${spaceDocumentId}`, {
+      method: 'DELETE',
+    });
+    await loadData();
   }
 
   async function createSpaceLink() {
-    const newLinkId = generateLinkId();
-    await supabase.from('document_links').insert({
-      space_id: id,
-      user_id: user!.id,
-      link_id: newLinkId,
-      name: `${space?.name || 'Space'} Link`,
-      require_email: true,
+    await apiFetchJson<DocumentLink>('/api/share-links', {
+      body: JSON.stringify({
+        name: `${space?.name || 'Space'} Link`,
+        require_email: true,
+        space_id: id,
+      }),
+      method: 'POST',
     });
-    loadData();
+    await loadData();
   }
 
   function copyLink(linkId: string) {
@@ -117,8 +126,8 @@ export default function SpaceDetailPage() {
     return <div className="p-8 text-center text-muted-foreground">Space not found.</div>;
   }
 
-  const availableDocs = allDocuments.filter(
-    d => !spaceDocuments.some(sd => sd.id === d.id)
+  const availableDocuments = allDocuments.filter(
+    (document) => !spaceDocuments.some((spaceDocument) => spaceDocument.id === document.id),
   );
 
   return (
@@ -147,7 +156,6 @@ export default function SpaceDetailPage() {
       />
 
       <div className="p-8 space-y-6">
-        {/* Space Links */}
         {links.length > 0 && (
           <Card>
             <CardHeader>
@@ -171,10 +179,16 @@ export default function SpaceDetailPage() {
                         {link.is_active ? 'Active' : 'Disabled'}
                       </Badge>
                       <Button variant="ghost" size="sm" onClick={() => copyLink(link.link_id)}>
-                        {copiedLinkId === link.link_id ? <Check size={14} className="text-success" /> : <Copy size={14} />}
+                        {copiedLinkId === link.link_id ? (
+                          <Check size={14} className="text-success" />
+                        ) : (
+                          <Copy size={14} />
+                        )}
                       </Button>
                       <a href={`/view/${link.link_id}`} target="_blank" rel="noopener noreferrer">
-                        <Button variant="ghost" size="sm"><ExternalLink size={14} /></Button>
+                        <Button variant="ghost" size="sm">
+                          <ExternalLink size={14} />
+                        </Button>
                       </a>
                     </div>
                   </div>
@@ -184,7 +198,6 @@ export default function SpaceDetailPage() {
           </Card>
         )}
 
-        {/* Documents in Space */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -213,18 +226,18 @@ export default function SpaceDetailPage() {
               />
             ) : (
               <div className="divide-y divide-border">
-                {spaceDocuments.map((doc, i) => (
-                  <div key={doc.space_doc_id} className="px-6 py-3 flex items-center gap-4 hover:bg-card-hover transition-colors">
+                {spaceDocuments.map((document, index) => (
+                  <div key={document.space_doc_id} className="px-6 py-3 flex items-center gap-4 hover:bg-card-hover transition-colors">
                     <GripVertical size={16} className="text-muted cursor-grab" />
                     <FileText size={18} className="text-muted flex-shrink-0" />
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-foreground">{doc.name}</p>
+                      <p className="text-sm font-medium text-foreground">{document.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {doc.page_count} pages · {doc.file_type.toUpperCase()} · {formatDate(doc.created_at)}
+                        {document.page_count} pages · {document.file_type.toUpperCase()} · {formatDate(document.created_at)}
                       </p>
                     </div>
-                    <Badge>{i + 1}</Badge>
-                    <Button variant="ghost" size="sm" onClick={() => removeDocument(doc.space_doc_id)}>
+                    <Badge>{index + 1}</Badge>
+                    <Button variant="ghost" size="sm" onClick={() => removeDocument(document.space_doc_id)}>
                       <Trash2 size={14} className="text-danger" />
                     </Button>
                   </div>
@@ -235,7 +248,6 @@ export default function SpaceDetailPage() {
         </Card>
       </div>
 
-      {/* Add Document Modal */}
       <Modal
         open={addDocOpen}
         onOpenChange={setAddDocOpen}
@@ -244,22 +256,22 @@ export default function SpaceDetailPage() {
         size="lg"
       >
         <div className="space-y-2 max-h-96 overflow-y-auto">
-          {availableDocs.length === 0 ? (
+          {availableDocuments.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">
               No more documents to add. Upload new documents first.
             </p>
           ) : (
-            availableDocs.map((doc) => (
+            availableDocuments.map((document) => (
               <button
-                key={doc.id}
-                onClick={() => addDocument(doc.id)}
+                key={document.id}
+                onClick={() => addDocument(document.id)}
                 className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-card-hover transition-colors text-left cursor-pointer"
               >
                 <FileText size={18} className="text-muted flex-shrink-0" />
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-foreground">{doc.name}</p>
+                  <p className="text-sm font-medium text-foreground">{document.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {doc.page_count} pages · {formatDate(doc.created_at)}
+                    {document.page_count} pages · {formatDate(document.created_at)}
                   </p>
                 </div>
                 <Plus size={16} className="text-muted-foreground" />

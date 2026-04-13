@@ -1,42 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 import { db } from '@/db';
 import { documents } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
+import { serializeDocument } from '@/lib/serializers';
+import { ensureCurrentUserRecord, requireUserId, toErrorResponse } from '@/lib/server/auth';
+import { parseDocumentCreateBody } from '@/lib/validators';
 
-export async function GET() {
-  const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export async function GET(req: NextRequest) {
+  try {
+    const userId = await requireUserId();
+    const rawLimit = Number(req.nextUrl.searchParams.get('limit'));
+    const limit = Number.isInteger(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 50) : null;
 
-  const rows = await db
-    .select()
-    .from(documents)
-    .where(eq(documents.userId, userId))
-    .orderBy(desc(documents.createdAt));
-
-  return NextResponse.json(rows);
+    const baseQuery = db
+      .select()
+      .from(documents)
+      .where(eq(documents.userId, userId))
+      .orderBy(desc(documents.createdAt));
+    const rows = limit ? await baseQuery.limit(limit) : await baseQuery;
+    return NextResponse.json(rows.map(serializeDocument));
+  } catch (error) {
+    return toErrorResponse(error);
+  }
 }
 
 export async function POST(req: NextRequest) {
-  const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  try {
+    const userId = await requireUserId();
+    await ensureCurrentUserRecord(userId);
 
-  const body = await req.json();
+    const body = parseDocumentCreateBody(await req.json());
 
-  const [row] = await db
-    .insert(documents)
-    .values({
-      userId,
-      name: body.name,
-      originalFilename: body.original_filename,
-      fileUrl: body.file_url,
-      fileSize: body.file_size,
-      fileType: body.file_type,
-      pageCount: body.page_count || 1,
-      thumbnailUrl: body.thumbnail_url || null,
-      folderId: body.folder_id || null,
-    })
-    .returning();
+    const [row] = await db
+      .insert(documents)
+      .values({
+        fileSize: body.fileSize,
+        fileType: body.fileType,
+        fileUrl: body.fileUrl,
+        folderId: body.folderId,
+        name: body.name,
+        originalFilename: body.originalFilename,
+        pageCount: body.pageCount,
+        thumbnailUrl: body.thumbnailUrl,
+        userId,
+      })
+      .returning();
 
-  return NextResponse.json(row, { status: 201 });
+    return NextResponse.json(serializeDocument(row), { status: 201 });
+  } catch (error) {
+    return toErrorResponse(error);
+  }
 }

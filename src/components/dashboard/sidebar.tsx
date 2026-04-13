@@ -13,6 +13,7 @@ import {
   PenTool,
   ChevronLeft,
   ChevronRight,
+  Code2,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -100,6 +101,16 @@ export function Sidebar() {
           {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
           {!collapsed && <span>Collapse</span>}
         </button>
+
+        <a
+          href="https://github.com/JasonLeviGoodison/OpenDoc"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted hover:text-muted-foreground hover:bg-card-hover w-full transition-colors duration-150"
+        >
+          <Code2 size={18} />
+          {!collapsed && <span>Source</span>}
+        </a>
       </div>
     </aside>
   );

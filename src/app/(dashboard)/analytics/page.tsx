@@ -1,95 +1,83 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useEffectEvent, useState } from 'react';
+import { useUser } from '@clerk/nextjs';
+import { Monitor, Smartphone } from 'lucide-react';
+
 import { Header } from '@/components/dashboard/header';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { StatsCard } from '@/components/ui/stats-card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Eye,
-  Users,
-  Clock,
-  BarChart3,
-  TrendingUp,
-  Globe,
-  Monitor,
-  Smartphone,
-  FileText,
-  ArrowUpRight,
-} from 'lucide-react';
-import { useUser } from '@clerk/nextjs';
-import { supabase } from '@/lib/supabase';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { StatsCard } from '@/components/ui/stats-card';
+import { apiFetchJson } from '@/lib/api-client';
+import type { Visit } from '@/lib/types';
 import { formatDate, formatDuration } from '@/lib/utils';
-import type { Visit, Document } from '@/lib/types';
 
 export default function AnalyticsPage() {
   const { user } = useUser();
   const [visits, setVisits] = useState<Visit[]>([]);
-  const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('30d');
 
+  const loadData = useEffectEvent(async () => {
+    if (!user) {
+      return;
+    }
+
+    const daysAgo = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
+    setLoading(true);
+
+    try {
+      const visitRows = await apiFetchJson<Visit[]>(`/api/visits?rangeDays=${daysAgo}`);
+      setVisits(visitRows);
+    } catch (error) {
+      console.error('Error loading analytics data:', error);
+    } finally {
+      setLoading(false);
+    }
+  });
+
   useEffect(() => {
-    if (user) loadData();
+    if (!user) {
+      return;
+    }
+
+    void loadData();
   }, [user, timeRange]);
 
-  async function loadData() {
-    const daysAgo = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
-    const since = new Date();
-    since.setDate(since.getDate() - daysAgo);
-
-    const [visitsRes, docsRes] = await Promise.all([
-      supabase
-        .from('visits')
-        .select('*, document_links!inner(user_id)')
-        .eq('document_links.user_id', user!.id)
-        .gte('created_at', since.toISOString())
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('documents')
-        .select('*')
-        .eq('user_id', user!.id),
-    ]);
-
-    setVisits(visitsRes.data || []);
-    setDocuments(docsRes.data || []);
-    setLoading(false);
-  }
-
   const totalViews = visits.length;
-  const uniqueVisitors = new Set(visits.map(v => v.visitor_email).filter(Boolean)).size;
+  const uniqueVisitors = new Set(visits.map((visit) => visit.visitor_email).filter(Boolean)).size;
   const avgDuration = visits.length > 0
-    ? visits.reduce((acc, v) => acc + (v.duration || 0), 0) / visits.length
+    ? visits.reduce((acc, visit) => acc + (visit.duration || 0), 0) / visits.length
     : 0;
   const avgCompletion = visits.length > 0
-    ? Math.round(visits.reduce((acc, v) => acc + (v.completion_rate || 0), 0) / visits.length)
+    ? Math.round(
+        visits.reduce((acc, visit) => acc + (visit.completion_rate || 0), 0) / visits.length,
+      )
     : 0;
-  const downloads = visits.filter(v => v.downloaded).length;
+  const downloads = visits.filter((visit) => visit.downloaded).length;
 
-  // Device breakdown
   const deviceCounts: Record<string, number> = {};
-  visits.forEach(v => {
-    const device = v.device_type || 'Unknown';
+  for (const visit of visits) {
+    const device = visit.device_type || 'Unknown';
     deviceCounts[device] = (deviceCounts[device] || 0) + 1;
-  });
+  }
 
-  // Country breakdown
   const countryCounts: Record<string, number> = {};
-  visits.forEach(v => {
-    const country = v.country || 'Unknown';
+  for (const visit of visits) {
+    const country = visit.country || 'Unknown';
     countryCounts[country] = (countryCounts[country] || 0) + 1;
-  });
+  }
+
   const topCountries = Object.entries(countryCounts)
     .sort(([, a], [, b]) => b - a)
     .slice(0, 5);
 
-  // Views over time (group by day)
   const viewsByDay: Record<string, number> = {};
-  visits.forEach(v => {
-    const day = new Date(v.created_at).toISOString().split('T')[0];
+  for (const visit of visits) {
+    const day = new Date(visit.created_at).toISOString().split('T')[0];
     viewsByDay[day] = (viewsByDay[day] || 0) + 1;
-  });
+  }
 
   return (
     <div>
@@ -113,7 +101,6 @@ export default function AnalyticsPage() {
       />
 
       <div className="p-8 space-y-8">
-        {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-px bg-border rounded-xl overflow-hidden border border-border">
           <div className="bg-card px-5 py-4"><StatsCard label="Total Views" value={totalViews} /></div>
           <div className="bg-card px-5 py-4"><StatsCard label="Unique Visitors" value={uniqueVisitors} /></div>
@@ -122,9 +109,7 @@ export default function AnalyticsPage() {
           <div className="bg-card px-5 py-4"><StatsCard label="Downloads" value={downloads} /></div>
         </div>
 
-        {/* Charts Row */}
         <div className="grid lg:grid-cols-2 gap-6">
-          {/* Views Over Time */}
           <Card>
             <CardHeader>
               <h2 className="font-semibold text-foreground">Views Over Time</h2>
@@ -151,14 +136,13 @@ export default function AnalyticsPage() {
                   })}
                 {Object.keys(viewsByDay).length === 0 && (
                   <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-                    No data for this period
+                    {loading ? 'Loading analytics...' : 'No data for this period'}
                   </div>
                 )}
               </div>
             </CardContent>
           </Card>
 
-          {/* Device Breakdown */}
           <Card>
             <CardHeader>
               <h2 className="font-semibold text-foreground">Devices</h2>
@@ -168,11 +152,7 @@ export default function AnalyticsPage() {
                 {Object.entries(deviceCounts).map(([device, count]) => (
                   <div key={device} className="flex items-center gap-3">
                     <div className="text-muted-foreground">
-                      {device.toLowerCase() === 'mobile' ? (
-                        <Smartphone size={16} />
-                      ) : (
-                        <Monitor size={16} />
-                      )}
+                      {device.toLowerCase() === 'mobile' ? <Smartphone size={16} /> : <Monitor size={16} />}
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-1">
@@ -182,14 +162,16 @@ export default function AnalyticsPage() {
                       <div className="h-1.5 bg-card-hover rounded-full overflow-hidden">
                         <div
                           className="h-full bg-accent rounded-full"
-                          style={{ width: `${(count / totalViews) * 100}%` }}
+                          style={{ width: `${(count / Math.max(totalViews, 1)) * 100}%` }}
                         />
                       </div>
                     </div>
                   </div>
                 ))}
                 {Object.keys(deviceCounts).length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-8">No data yet</p>
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    {loading ? 'Loading analytics...' : 'No data yet'}
+                  </p>
                 )}
               </div>
             </CardContent>
@@ -197,7 +179,6 @@ export default function AnalyticsPage() {
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Top Locations */}
           <Card>
             <CardHeader>
               <h2 className="text-sm font-bold text-foreground uppercase tracking-wide">
@@ -206,7 +187,9 @@ export default function AnalyticsPage() {
             </CardHeader>
             <CardContent className="p-0">
               {topCountries.length === 0 ? (
-                <div className="py-8 text-center text-muted-foreground text-sm">No data yet</div>
+                <div className="py-8 text-center text-muted-foreground text-sm">
+                  {loading ? 'Loading locations...' : 'No data yet'}
+                </div>
               ) : (
                 <div className="divide-y divide-border">
                   {topCountries.map(([country, count]) => (
@@ -220,7 +203,6 @@ export default function AnalyticsPage() {
             </CardContent>
           </Card>
 
-          {/* All Visitors */}
           <Card className="lg:col-span-2">
             <CardHeader>
               <h2 className="text-sm font-bold text-foreground uppercase tracking-wide">
@@ -230,7 +212,7 @@ export default function AnalyticsPage() {
             <CardContent className="p-0">
               {visits.length === 0 ? (
                 <div className="py-12 text-center text-muted-foreground text-sm">
-                  No visitors yet
+                  {loading ? 'Loading visitors...' : 'No visitors yet'}
                 </div>
               ) : (
                 <div className="divide-y divide-border">
@@ -245,7 +227,8 @@ export default function AnalyticsPage() {
                             {visit.visitor_email || 'Anonymous'}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {visit.city && `${visit.city}, `}{visit.country || ''} · {visit.device_type || 'Unknown'} · {visit.browser || ''}
+                            {visit.city && `${visit.city}, `}
+                            {visit.country || ''} &middot; {visit.device_type || 'Unknown'} &middot; {visit.browser || ''}
                           </p>
                         </div>
                       </div>

@@ -1,34 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { visits } from '@/db/schema';
-
-export async function POST(req: NextRequest) {
-  const body = await req.json();
-
-  const forwarded = req.headers.get('x-forwarded-for');
-  const ip = forwarded ? forwarded.split(',')[0] : req.headers.get('x-real-ip') || 'unknown';
-  const userAgent = req.headers.get('user-agent') || '';
-
-  const isMobile = /mobile|android|iphone|ipad/i.test(userAgent);
-  const browser = parseBrowser(userAgent);
-  const os = parseOS(userAgent);
-
-  const [row] = await db
-    .insert(visits)
-    .values({
-      linkId: body.link_id,
-      documentId: body.document_id,
-      visitorEmail: body.visitor_email || null,
-      visitorName: body.visitor_name || null,
-      ipAddress: ip,
-      deviceType: isMobile ? 'Mobile' : 'Desktop',
-      browser,
-      os,
-    })
-    .returning();
-
-  return NextResponse.json(row, { status: 201 });
-}
+import { documentLinks, signatures, spaceDocuments, visits } from '@/db/schema';
+import { and, desc, eq, gte, sql } from 'drizzle-orm';
+import { getLinkAvailability, isEmailAuthorized } from '@/lib/link-access';
+import { serializeVisit } from '@/lib/serializers';
+import { requireUserId, RouteError, toErrorResponse } from '@/lib/server/auth';
+import { createSignedToken, verifySignedToken } from '@/lib/security';
+import { parseVisitCreateBody } from '@/lib/validators';
 
 function parseBrowser(ua: string): string {
   if (/firefox/i.test(ua)) return 'Firefox';
@@ -46,4 +24,153 @@ function parseOS(ua: string): string {
   if (/android/i.test(ua)) return 'Android';
   if (/iphone|ipad/i.test(ua)) return 'iOS';
   return 'Other';
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    const userId = await requireUserId();
+    const documentId = req.nextUrl.searchParams.get('documentId');
+    const rawLimit = Number(req.nextUrl.searchParams.get('limit'));
+    const rawRangeDays = Number(req.nextUrl.searchParams.get('rangeDays'));
+    const limit = Number.isInteger(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 100) : null;
+    const rangeDays = Number.isInteger(rawRangeDays) && rawRangeDays > 0 ? rawRangeDays : null;
+    const filters = [eq(documentLinks.userId, userId)];
+
+    if (documentId) {
+      filters.push(eq(visits.documentId, documentId));
+    }
+
+    if (rangeDays) {
+      const since = new Date();
+      since.setDate(since.getDate() - rangeDays);
+      filters.push(gte(visits.createdAt, since));
+    }
+
+    const baseQuery = db
+      .select({ visit: visits })
+      .from(visits)
+      .innerJoin(documentLinks, eq(visits.linkId, documentLinks.id))
+      .where(and(...filters))
+      .orderBy(desc(visits.createdAt));
+    const rows = limit ? await baseQuery.limit(limit) : await baseQuery;
+    return NextResponse.json(rows.map(({ visit }) => serializeVisit(visit)));
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const viewerToken = req.headers.get('x-opendoc-viewer-token');
+    const tokenPayload = verifySignedToken(viewerToken);
+
+    if (!tokenPayload || tokenPayload.scope !== 'viewer') {
+      throw new RouteError('Viewer session is invalid.', 401);
+    }
+
+    const body = parseVisitCreateBody(await req.json());
+    const [link] = await db
+      .select()
+      .from(documentLinks)
+      .where(eq(documentLinks.linkId, tokenPayload.linkId));
+
+    if (!link) {
+      throw new RouteError('Link not found.', 404);
+    }
+
+    if (getLinkAvailability(link) !== 'available') {
+      throw new RouteError('Link is not available.', 403);
+    }
+
+    if (link.requireEmail && (!body.visitorEmail || !isEmailAuthorized(link, body.visitorEmail))) {
+      throw new RouteError('Viewer email is not authorized.', 403);
+    }
+
+    if (link.requireNda && !body.ndaAccepted) {
+      throw new RouteError('NDA acceptance is required.', 403);
+    }
+
+    let documentId = link.documentId;
+
+    if (link.spaceId) {
+      if (body.documentId) {
+        const [spaceDocument] = await db
+          .select({ documentId: spaceDocuments.documentId })
+          .from(spaceDocuments)
+          .where(and(eq(spaceDocuments.spaceId, link.spaceId), eq(spaceDocuments.documentId, body.documentId)));
+
+        if (!spaceDocument) {
+          throw new RouteError('Document is not part of this space.', 400);
+        }
+
+        documentId = spaceDocument.documentId;
+      } else {
+        const [spaceDocument] = await db
+          .select({ documentId: spaceDocuments.documentId })
+          .from(spaceDocuments)
+          .where(eq(spaceDocuments.spaceId, link.spaceId))
+          .orderBy(spaceDocuments.orderIndex);
+
+        documentId = spaceDocument?.documentId ?? null;
+      }
+    } else if (body.documentId && body.documentId !== link.documentId) {
+      throw new RouteError('Document is not associated with this link.', 400);
+    }
+
+    const forwarded = req.headers.get('x-forwarded-for');
+    const ip = forwarded ? forwarded.split(',')[0]?.trim() : req.headers.get('x-real-ip') || 'unknown';
+    const userAgent = req.headers.get('user-agent') || '';
+    const isMobile = /mobile|android|iphone|ipad/i.test(userAgent);
+    const browser = parseBrowser(userAgent);
+    const os = parseOS(userAgent);
+
+    const [row] = await db
+      .insert(visits)
+      .values({
+        browser,
+        deviceType: isMobile ? 'Mobile' : 'Desktop',
+        documentId,
+        ipAddress: ip || 'unknown',
+        linkId: link.id,
+        os,
+        visitorEmail: body.visitorEmail,
+        visitorName: body.visitorName,
+      })
+      .returning();
+
+    if (link.requireNda) {
+      await db.insert(signatures).values({
+        linkId: link.id,
+        ndaText: link.ndaText ?? '',
+        signerEmail: body.visitorEmail ?? `anonymous+${row.id}@opendoc.invalid`,
+        signerIp: ip || 'unknown',
+        signerName: body.visitorName ?? body.visitorEmail ?? 'Anonymous viewer',
+        visitId: row.id,
+      });
+
+      await db.update(visits).set({ signedNda: true }).where(eq(visits.id, row.id));
+    }
+
+    await db
+      .update(documentLinks)
+      .set({
+        lastVisitedAt: new Date(),
+        visitCount: sql`${documentLinks.visitCount} + 1`,
+      })
+      .where(eq(documentLinks.id, link.id));
+
+    return NextResponse.json(
+      {
+        ...serializeVisit(row),
+        visit_token: createSignedToken({
+          linkId: tokenPayload.linkId,
+          scope: 'visit',
+          visitId: row.id,
+        }),
+      },
+      { status: 201 },
+    );
+  } catch (error) {
+    return toErrorResponse(error);
+  }
 }

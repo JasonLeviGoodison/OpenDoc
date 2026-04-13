@@ -1,32 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useCallback, useEffect, useState } from 'react';
+import { useUser } from '@clerk/nextjs';
+import { FolderOpen, Plus, Search } from 'lucide-react';
+
 import { Header } from '@/components/dashboard/header';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
-import { EmptyState } from '@/components/ui/empty-state';
-import {
-  Plus,
-  FolderOpen,
-  Search,
-  FileText,
-  Eye,
-  Link2,
-  Settings,
-  Trash2,
-  Copy,
-  Check,
-  ExternalLink,
-  Image,
-} from 'lucide-react';
-import Link from 'next/link';
-import { useUser } from '@clerk/nextjs';
-import { supabase } from '@/lib/supabase';
-import { formatDate, generateLinkId } from '@/lib/utils';
+import { apiFetchJson } from '@/lib/api-client';
 import type { Space } from '@/lib/types';
+import { formatDate } from '@/lib/utils';
 
 export default function SpacesPage() {
   const { user } = useUser();
@@ -34,53 +22,63 @@ export default function SpacesPage() {
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [search, setSearch] = useState('');
-
-  // Create form
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [headline, setHeadline] = useState('');
   const [creating, setCreating] = useState(false);
 
-  useEffect(() => {
-    if (user) loadSpaces();
+  const loadSpaces = useCallback(async () => {
+    if (!user) {
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const rows = await apiFetchJson<Space[]>('/api/spaces');
+      setSpaces(rows);
+    } catch (error) {
+      console.error('Error loading spaces:', error);
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
 
-  async function loadSpaces() {
-    const { data } = await supabase
-      .from('spaces')
-      .select('*')
-      .eq('user_id', user!.id)
-      .order('created_at', { ascending: false });
-    setSpaces(data || []);
-    setLoading(false);
-  }
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    void loadSpaces();
+  }, [loadSpaces, user]);
 
   async function createSpace() {
     setCreating(true);
-    const { error } = await supabase.from('spaces').insert({
-      user_id: user!.id,
-      name,
-      description: description || null,
-      headline: headline || null,
-    });
 
-    if (!error) {
+    try {
+      await apiFetchJson<Space>('/api/spaces', {
+        body: JSON.stringify({
+          description: description || null,
+          headline: headline || null,
+          name,
+        }),
+        method: 'POST',
+      });
+
       setCreateOpen(false);
       setName('');
       setDescription('');
       setHeadline('');
-      loadSpaces();
+      await loadSpaces();
+    } catch (error) {
+      console.error('Error creating space:', error);
+    } finally {
+      setCreating(false);
     }
-    setCreating(false);
   }
 
-  async function deleteSpace(id: string) {
-    await supabase.from('spaces').delete().eq('id', id);
-    setSpaces(spaces.filter(s => s.id !== id));
-  }
-
-  const filtered = spaces.filter(s =>
-    s.name.toLowerCase().includes(search.toLowerCase())
+  const filteredSpaces = spaces.filter((space) =>
+    space.name.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
@@ -101,26 +99,30 @@ export default function SpacesPage() {
           <Input
             placeholder="Search spaces..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(event) => setSearch(event.target.value)}
             icon={<Search size={16} />}
           />
         </div>
 
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="bg-card rounded-xl border border-border p-6 animate-pulse">
+            {[...Array(6)].map((_, index) => (
+              <div key={index} className="bg-card rounded-xl border border-border p-6 animate-pulse">
                 <div className="h-8 bg-card-hover rounded w-3/4 mb-3" />
                 <div className="h-4 bg-card-hover rounded w-full mb-2" />
                 <div className="h-4 bg-card-hover rounded w-1/2" />
               </div>
             ))}
           </div>
-        ) : filtered.length === 0 ? (
+        ) : filteredSpaces.length === 0 ? (
           <EmptyState
             icon={<FolderOpen size={32} />}
             title={search ? 'No spaces found' : 'No spaces yet'}
-            description={search ? 'Try a different search term' : 'Create a data room to share multiple documents with one link'}
+            description={
+              search
+                ? 'Try a different search term'
+                : 'Create a data room to share multiple documents with one link'
+            }
             action={
               !search && (
                 <Button onClick={() => setCreateOpen(true)}>
@@ -132,16 +134,11 @@ export default function SpacesPage() {
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map((space) => (
+            {filteredSpaces.map((space) => (
               <Link key={space.id} href={`/spaces/${space.id}`}>
                 <Card hover className="p-6 group">
-                  {/* Banner placeholder */}
                   <div className="h-16 -mx-6 -mt-6 mb-4 rounded-t-xl bg-card-hover flex items-center justify-center">
-                    {space.logo_url ? (
-                      <img src={space.logo_url} alt="" className="h-8 object-contain" />
-                    ) : (
-                      <FolderOpen size={20} className="text-muted" />
-                    )}
+                    <FolderOpen size={20} className="text-muted" />
                   </div>
 
                   <div className="flex items-start justify-between">
@@ -170,7 +167,6 @@ export default function SpacesPage() {
         )}
       </div>
 
-      {/* Create Modal */}
       <Modal
         open={createOpen}
         onOpenChange={setCreateOpen}
@@ -182,14 +178,14 @@ export default function SpacesPage() {
           <Input
             label="Space Name"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(event) => setName(event.target.value)}
             placeholder="e.g., Series A Due Diligence"
           />
           <div>
             <label className="text-sm font-medium text-muted-foreground">Description</label>
             <textarea
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(event) => setDescription(event.target.value)}
               className="mt-1.5 w-full bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted resize-none h-20 focus:outline-none focus:ring-2 focus:ring-accent"
               placeholder="Describe what this space contains..."
             />
@@ -197,7 +193,7 @@ export default function SpacesPage() {
           <Input
             label="Headline (shown to visitors)"
             value={headline}
-            onChange={(e) => setHeadline(e.target.value)}
+            onChange={(event) => setHeadline(event.target.value)}
             placeholder="e.g., Welcome to our data room"
           />
 

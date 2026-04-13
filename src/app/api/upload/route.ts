@@ -1,50 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 import { db } from '@/db';
 import { documents } from '@/db/schema';
 import { supabase } from '@/lib/supabase';
+import { serializeDocument } from '@/lib/serializers';
+import { ensureCurrentUserRecord, requireUserId, RouteError, toErrorResponse } from '@/lib/server/auth';
+import { createStoragePath } from '@/lib/storage';
+import { getFileExtension } from '@/lib/utils';
+
+const ALLOWED_EXTENSIONS = new Set(['pdf', 'ppt', 'pptx', 'doc', 'docx', 'xls', 'xlsx']);
+const MAX_FILE_SIZE = 100 * 1024 * 1024;
 
 export async function POST(req: NextRequest) {
-  const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  try {
+    const userId = await requireUserId();
+    await ensureCurrentUserRecord(userId);
 
-  const formData = await req.formData();
-  const file = formData.get('file') as File;
-  const name = formData.get('name') as string;
+    const formData = await req.formData();
+    const file = formData.get('file');
+    const rawName = formData.get('name');
 
-  if (!file) {
-    return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    if (!(file instanceof File)) {
+      throw new RouteError('No file provided.', 400);
+    }
+
+    const fileExt = getFileExtension(file.name);
+
+    if (!ALLOWED_EXTENSIONS.has(fileExt)) {
+      throw new RouteError('Unsupported file type.', 400);
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      throw new RouteError('File is too large.', 400);
+    }
+
+    const filePath = createStoragePath(userId, file.name);
+
+    const { error: uploadError } = await supabase.storage.from('documents').upload(filePath, file, {
+      contentType: file.type || undefined,
+      upsert: false,
+    });
+
+    if (uploadError) {
+      throw new RouteError(uploadError.message, 500);
+    }
+
+    const [row] = await db
+      .insert(documents)
+      .values({
+        fileSize: file.size,
+        fileType: fileExt,
+        fileUrl: filePath,
+        name: typeof rawName === 'string' && rawName.trim()
+          ? rawName.trim()
+          : file.name.replace(/\.[^/.]+$/, ''),
+        originalFilename: file.name,
+        pageCount: 1,
+        userId,
+      })
+      .returning();
+
+    return NextResponse.json(serializeDocument(row), { status: 201 });
+  } catch (error) {
+    return toErrorResponse(error);
   }
-
-  const fileExt = file.name.split('.').pop()?.toLowerCase() || 'pdf';
-  const filePath = `${userId}/${Date.now()}-${file.name}`;
-
-  // Upload to Supabase Storage (still used for file hosting)
-  const { error: uploadError } = await supabase.storage
-    .from('documents')
-    .upload(filePath, file);
-
-  if (uploadError) {
-    return NextResponse.json({ error: uploadError.message }, { status: 500 });
-  }
-
-  const { data: { publicUrl } } = supabase.storage
-    .from('documents')
-    .getPublicUrl(filePath);
-
-  // Insert document via Drizzle
-  const [row] = await db
-    .insert(documents)
-    .values({
-      userId,
-      name: name || file.name.replace(/\.[^/.]+$/, ''),
-      originalFilename: file.name,
-      fileUrl: publicUrl,
-      fileSize: file.size,
-      fileType: fileExt,
-      pageCount: 1,
-    })
-    .returning();
-
-  return NextResponse.json(row, { status: 201 });
 }

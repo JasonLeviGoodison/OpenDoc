@@ -1,59 +1,70 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Header } from '@/components/dashboard/header';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { EmptyState } from '@/components/ui/empty-state';
+import { useCallback, useEffect, useState } from 'react';
+import { useUser } from '@clerk/nextjs';
 import {
-  Link2,
-  Search,
-  Copy,
+  Calendar,
   Check,
+  Copy,
+  Download,
   ExternalLink,
   Eye,
-  Mail,
+  Link2,
   Lock,
+  Mail,
+  Search,
   Shield,
-  Download,
-  Calendar,
-  Trash2,
   ToggleLeft,
   ToggleRight,
+  Trash2,
 } from 'lucide-react';
-import { useUser } from '@clerk/nextjs';
-import { supabase } from '@/lib/supabase';
-import { formatDate } from '@/lib/utils';
+
+import { Header } from '@/components/dashboard/header';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Input } from '@/components/ui/input';
+import { apiFetchJson } from '@/lib/api-client';
 import type { DocumentLink } from '@/lib/types';
+import { formatDate } from '@/lib/utils';
+
+type ShareLink = DocumentLink & {
+  document_name?: string;
+  space_name?: string;
+};
 
 export default function LinksPage() {
   const { user } = useUser();
-  const [links, setLinks] = useState<(DocumentLink & { document_name?: string })[]>([]);
+  const [links, setLinks] = useState<ShareLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (user) loadLinks();
+  const loadLinks = useCallback(async () => {
+    if (!user) {
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const rows = await apiFetchJson<ShareLink[]>('/api/share-links');
+      setLinks(rows);
+    } catch (error) {
+      console.error('Error loading links:', error);
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
 
-  async function loadLinks() {
-    const { data } = await supabase
-      .from('document_links')
-      .select('*, documents(name)')
-      .eq('user_id', user!.id)
-      .order('created_at', { ascending: false });
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
 
-    setLinks(
-      (data || []).map((l: any) => ({
-        ...l,
-        document_name: l.documents?.name,
-      }))
-    );
-    setLoading(false);
-  }
+    void loadLinks();
+  }, [loadLinks, user]);
 
   function copyLink(linkId: string) {
     navigator.clipboard.writeText(`${window.location.origin}/view/${linkId}`);
@@ -62,55 +73,60 @@ export default function LinksPage() {
   }
 
   async function toggleLink(id: string, isActive: boolean) {
-    await supabase.from('document_links').update({ is_active: !isActive }).eq('id', id);
-    loadLinks();
+    await apiFetchJson<DocumentLink>(`/api/share-links/${id}`, {
+      body: JSON.stringify({ is_active: !isActive }),
+      method: 'PATCH',
+    });
+    await loadLinks();
   }
 
   async function deleteLink(id: string) {
-    await supabase.from('document_links').delete().eq('id', id);
-    loadLinks();
+    await apiFetchJson<{ success: boolean }>(`/api/share-links/${id}`, {
+      method: 'DELETE',
+    });
+    await loadLinks();
   }
 
-  const filtered = links.filter(l =>
-    l.name.toLowerCase().includes(search.toLowerCase()) ||
-    l.document_name?.toLowerCase().includes(search.toLowerCase())
+  const filteredLinks = links.filter((link) =>
+    link.name.toLowerCase().includes(search.toLowerCase()) ||
+    link.document_name?.toLowerCase().includes(search.toLowerCase()) ||
+    link.space_name?.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
     <div>
-      <Header
-        title="Links"
-        description={`${links.length} shared link${links.length !== 1 ? 's' : ''}`}
-      />
+      <Header title="Links" description={`${links.length} shared link${links.length !== 1 ? 's' : ''}`} />
 
       <div className="p-8">
         <div className="w-80 mb-6">
           <Input
             placeholder="Search links..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(event) => setSearch(event.target.value)}
             icon={<Search size={16} />}
           />
         </div>
 
         {loading ? (
           <div className="space-y-3">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="bg-card rounded-xl border border-border p-5 animate-pulse">
+            {[...Array(5)].map((_, index) => (
+              <div key={index} className="bg-card rounded-xl border border-border p-5 animate-pulse">
                 <div className="h-5 bg-card-hover rounded w-1/3 mb-3" />
                 <div className="h-4 bg-card-hover rounded w-1/2" />
               </div>
             ))}
           </div>
-        ) : filtered.length === 0 ? (
+        ) : filteredLinks.length === 0 ? (
           <EmptyState
             icon={<Link2 size={32} />}
             title={search ? 'No links found' : 'No links yet'}
-            description={search ? 'Try a different search term' : 'Create a link from a document to start sharing'}
+            description={
+              search ? 'Try a different search term' : 'Create a link from a document to start sharing'
+            }
           />
         ) : (
           <div className="space-y-3">
-            {filtered.map((link) => (
+            {filteredLinks.map((link) => (
               <Card key={link.id} className="p-5">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -128,12 +144,14 @@ export default function LinksPage() {
                         Document: {link.document_name}
                       </p>
                     )}
+                    {link.space_name && (
+                      <p className="text-xs text-muted-foreground mb-2">Space: {link.space_name}</p>
+                    )}
                     <p className="text-xs text-muted font-mono">
                       {typeof window !== 'undefined' && `${window.location.origin}/view/${link.link_id}`}
                     </p>
 
-                    {/* Feature badges */}
-                    <div className="flex items-center gap-3 mt-3 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-3 mt-3 text-xs text-muted-foreground flex-wrap">
                       <span className="flex items-center gap-1">
                         <Eye size={12} /> {link.visit_count} views
                       </span>

@@ -2,9 +2,11 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as schema from './schema';
 
+type DbInstance = ReturnType<typeof drizzle<typeof schema>>;
+
 // Lazy singleton — only connects when the first query runs,
 // so the build doesn't crash on a placeholder DATABASE_URL.
-let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
+let _db: DbInstance | null = null;
 
 export function getDb() {
   if (!_db) {
@@ -15,8 +17,8 @@ export function getDb() {
 }
 
 // Convenience alias — use `db` everywhere in route handlers.
-export const db = new Proxy({} as ReturnType<typeof drizzle<typeof schema>>, {
+export const db = new Proxy({} as DbInstance, {
   get(_target, prop) {
-    return (getDb() as any)[prop];
+    return getDb()[prop as keyof DbInstance];
   },
 });
