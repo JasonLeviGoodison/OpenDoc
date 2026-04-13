@@ -5,6 +5,7 @@ import { useDropzone } from 'react-dropzone';
 import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { MAX_UPLOAD_FILE_SIZE_BYTES } from '@/lib/upload';
 import { Upload, FileText, X, Check } from 'lucide-react';
 import { cn, formatFileSize } from '@/lib/utils';
 
@@ -41,7 +42,7 @@ export function UploadModal({ open, onOpenChange, onUpload }: UploadModalProps) 
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
     },
     maxFiles: 1,
-    maxSize: 100 * 1024 * 1024, // 100MB
+    maxSize: MAX_UPLOAD_FILE_SIZE_BYTES,
   });
 
   async function handleUpload() {
@@ -113,7 +114,7 @@ export function UploadModal({ open, onOpenChange, onUpload }: UploadModalProps) 
                 {isDragActive ? 'Drop your file here' : 'Drag & drop your file here'}
               </p>
               <p className="text-xs text-muted">
-                PDF, PowerPoint, Word, or Excel &middot; Max 100MB
+                PDF, PowerPoint, Word, or Excel &middot; Max {formatFileSize(MAX_UPLOAD_FILE_SIZE_BYTES)}
               </p>
             </>
           )}

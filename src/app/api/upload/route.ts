@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { MAX_UPLOAD_FILE_SIZE_BYTES } from '@/lib/upload';
 import { ensureCurrentUserRecord, requireUserId, RouteError, toErrorResponse } from '@/lib/server/auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { createStoragePath } from '@/lib/storage';
@@ -6,7 +7,6 @@ import { getFileExtension } from '@/lib/utils';
 import { parseUploadRequestBody } from '@/lib/validators';
 
 const ALLOWED_EXTENSIONS = new Set(['pdf', 'ppt', 'pptx', 'doc', 'docx', 'xls', 'xlsx']);
-const MAX_FILE_SIZE = 100 * 1024 * 1024;
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
       throw new RouteError('File is required.', 400);
     }
 
-    if (body.fileSize > MAX_FILE_SIZE) {
+    if (body.fileSize > MAX_UPLOAD_FILE_SIZE_BYTES) {
       throw new RouteError('File is too large.', 400);
     }
 
