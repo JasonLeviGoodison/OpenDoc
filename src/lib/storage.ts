@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { isAllowedLegacyPublicStorageUrl, isStorageObjectPath } from '@/lib/document-storage';
 import { supabase } from '@/lib/supabase';
 import { getFileExtension } from '@/lib/utils';
 
@@ -9,10 +10,14 @@ export function createStoragePath(userId: string, filename: string) {
 }
 
 export function resolveStoredFileUrl(fileUrl: string) {
-  if (/^https?:\/\//i.test(fileUrl)) {
+  if (isStorageObjectPath(fileUrl)) {
+    const { data } = supabase.storage.from('documents').getPublicUrl(fileUrl);
+    return data.publicUrl;
+  }
+
+  if (isAllowedLegacyPublicStorageUrl(fileUrl)) {
     return fileUrl;
   }
 
-  const { data } = supabase.storage.from('documents').getPublicUrl(fileUrl);
-  return data.publicUrl;
+  throw new Error('Document storage URL is invalid.');
 }

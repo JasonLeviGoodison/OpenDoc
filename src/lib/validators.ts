@@ -1,3 +1,4 @@
+import { isStorageObjectPath } from '@/lib/document-storage';
 import { normalizeList, splitList } from '@/lib/link-access';
 
 export class ValidationError extends Error {
@@ -124,11 +125,16 @@ function stringArray(value: unknown, fieldName: string) {
 
 export function parseDocumentCreateBody(body: unknown) {
   const record = asObject(body);
+  const fileUrl = requiredString(record.file_url, 'file_url', { maxLength: 512 });
+
+  if (!isStorageObjectPath(fileUrl)) {
+    throw new ValidationError('file_url must be a storage object path.');
+  }
 
   return {
     fileSize: optionalNumber(record.file_size, 'file_size') ?? 0,
     fileType: requiredString(record.file_type, 'file_type', { maxLength: 32 }),
-    fileUrl: requiredString(record.file_url, 'file_url', { maxLength: 512 }),
+    fileUrl,
     folderId: optionalString(record.folder_id, 'folder_id', { maxLength: 64 }),
     name: requiredString(record.name, 'name', { maxLength: 180 }),
     originalFilename: requiredString(record.original_filename, 'original_filename', {

@@ -1,7 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { ValidationError, parseShareLinkBody, parseVisitPatchBody } from '@/lib/validators';
+import {
+  ValidationError,
+  parseDocumentCreateBody,
+  parseShareLinkBody,
+  parseVisitPatchBody,
+} from '@/lib/validators';
+
+test('parseDocumentCreateBody rejects absolute file URLs', () => {
+  assert.throws(
+    () =>
+      parseDocumentCreateBody({
+        file_size: 10,
+        file_type: 'pdf',
+        file_url: 'https://169.254.169.254/latest/meta-data',
+        name: 'Deck',
+        original_filename: 'deck.pdf',
+        page_count: 1,
+      }),
+    ValidationError,
+  );
+});
 
 test('parseShareLinkBody normalizes access lists and accepts document links', () => {
   const parsed = parseShareLinkBody({

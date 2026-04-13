@@ -74,7 +74,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ link
       throw new RouteError('Downloads are disabled for this link.', 403);
     }
 
-    const sourceUrl = resolveStoredFileUrl(document.fileUrl);
+    let sourceUrl: string;
+
+    try {
+      sourceUrl = resolveStoredFileUrl(document.fileUrl);
+    } catch {
+      throw new RouteError('Document storage URL is invalid.', 500);
+    }
+
     const range = req.headers.get('range');
     const upstream = await fetch(sourceUrl, {
       headers: range ? { range } : undefined,
