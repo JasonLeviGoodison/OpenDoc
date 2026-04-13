@@ -13,8 +13,17 @@ import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
 import { apiFetchJson } from '@/lib/api-client';
+import { supabase } from '@/lib/supabase';
 import type { Document } from '@/lib/types';
-import { formatDate, formatFileSize } from '@/lib/utils';
+import { formatDate, formatFileSize, getFileExtension } from '@/lib/utils';
+
+interface SignedUploadPayload {
+  content_type: string | null;
+  file_type: string;
+  path: string;
+  signed_url: string;
+  token: string;
+}
 
 export default function DocumentsPage() {
   const { user } = useUser();
@@ -50,12 +59,42 @@ export default function DocumentsPage() {
   }, [loadDocuments, user]);
 
   async function handleUpload(files: File[], name: string) {
-    const formData = new FormData();
-    formData.append('file', files[0]);
-    formData.append('name', name);
+    const file = files[0];
 
-    await apiFetchJson<Document>('/api/upload', {
-      body: formData,
+    const upload = await apiFetchJson<SignedUploadPayload>('/api/upload', {
+      body: JSON.stringify({
+        content_type: file.type || null,
+        file_name: file.name,
+        file_size: file.size,
+      }),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      method: 'POST',
+    });
+
+    const { error: uploadError } = await supabase.storage
+      .from('documents')
+      .uploadToSignedUrl(upload.path, upload.token, file, {
+        contentType: file.type || undefined,
+      });
+
+    if (uploadError) {
+      throw new Error(uploadError.message);
+    }
+
+    await apiFetchJson<Document>('/api/documents', {
+      body: JSON.stringify({
+        file_size: file.size,
+        file_type: upload.file_type || getFileExtension(file.name),
+        file_url: upload.path,
+        name,
+        original_filename: file.name,
+        page_count: 1,
+      }),
+      headers: {
+        'Content-Type': 'application/json',
+      },
       method: 'POST',
     });
 
