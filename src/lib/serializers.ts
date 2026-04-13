@@ -27,6 +27,12 @@ export function serializeDocument(row: DocumentRow) {
     name: row.name,
     original_filename: row.originalFilename,
     page_count: row.pageCount,
+    preview_error: row.previewError,
+    preview_file_type: row.previewFileType,
+    preview_file_url: row.previewFileUrl,
+    preview_page_count: row.previewPageCount ?? 0,
+    preview_status: row.previewStatus ?? 'none',
+    preview_updated_at: row.previewUpdatedAt?.toISOString() ?? null,
     thumbnail_url: row.thumbnailUrl,
     updated_at: row.updatedAt?.toISOString() ?? null,
     user_id: row.userId,
@@ -39,6 +45,10 @@ export function serializeDocumentSummary(row: DocumentRow) {
     id: row.id,
     name: row.name,
     page_count: row.pageCount,
+    preview_error: row.previewError,
+    preview_file_type: row.previewFileType,
+    preview_page_count: row.previewPageCount ?? 0,
+    preview_status: row.previewStatus ?? 'none',
   };
 }
 

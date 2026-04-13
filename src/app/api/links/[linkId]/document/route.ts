@@ -5,10 +5,17 @@ import { db } from '@/db';
 import { documentLinks, documents, spaceDocuments } from '@/db/schema';
 import { buildContentDisposition, VIEWER_COOKIE_NAME } from '@/lib/http';
 import { getLinkAvailability } from '@/lib/link-access';
+import { getInlinePreviewFilename } from '@/lib/server/document-preview';
 import { RouteError, toErrorResponse } from '@/lib/server/auth';
 import { verifySignedToken } from '@/lib/security';
 import { resolveStoredFileUrl } from '@/lib/storage';
-import { resolveViewerToken } from '@/lib/viewer';
+import {
+  getInlineViewerFileType,
+  isInlinePreviewFailed,
+  isInlinePreviewPending,
+  isPdfViewerFile,
+  resolveViewerToken,
+} from '@/lib/viewer';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ linkId: string }> }) {
   try {
@@ -78,10 +85,52 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ link
       throw new RouteError('Downloads are disabled for this link.', 403);
     }
 
+    let storageObjectPath = document.fileUrl;
+    let inlineFilename = document.originalFilename;
+
+    if (!downloadRequested) {
+      const inlineViewerFileType = getInlineViewerFileType({
+        fileType: document.fileType,
+        previewFileType: document.previewFileType,
+        previewStatus: document.previewStatus,
+      });
+
+      if (inlineViewerFileType !== 'pdf') {
+        if (
+          isInlinePreviewPending({
+            fileType: document.fileType,
+            previewStatus: document.previewStatus,
+          })
+        ) {
+          throw new RouteError('Preview is still processing.', 409);
+        }
+
+        if (
+          isInlinePreviewFailed({
+            fileType: document.fileType,
+            previewStatus: document.previewStatus,
+          })
+        ) {
+          throw new RouteError(document.previewError || 'Preview generation failed.', 409);
+        }
+
+        throw new RouteError('A secure inline preview is not available for this document.', 415);
+      }
+
+      if (!isPdfViewerFile(document.fileType)) {
+        if (!document.previewFileUrl) {
+          throw new RouteError('Preview PDF is missing.', 500);
+        }
+
+        storageObjectPath = document.previewFileUrl;
+        inlineFilename = getInlinePreviewFilename(document.originalFilename);
+      }
+    }
+
     let sourceUrl: string;
 
     try {
-      sourceUrl = resolveStoredFileUrl(document.fileUrl);
+      sourceUrl = resolveStoredFileUrl(storageObjectPath);
     } catch {
       throw new RouteError('Document storage URL is invalid.', 500);
     }
@@ -113,7 +162,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ link
     }
 
     headers.set('Cache-Control', 'private, no-store');
-    headers.set('Content-Disposition', buildContentDisposition(downloadRequested ? 'attachment' : 'inline', document.originalFilename));
+    headers.set(
+      'Content-Disposition',
+      buildContentDisposition(downloadRequested ? 'attachment' : 'inline', downloadRequested ? document.originalFilename : inlineFilename),
+    );
 
     return new NextResponse(upstream.body, {
       headers,

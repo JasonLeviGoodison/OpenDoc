@@ -2,14 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  buildPreviewFilename,
   buildViewerDocumentPath,
+  getInitialDocumentPreviewState,
+  getInlineViewerFileType,
   getViewerDocumentKind,
+  isInlinePreviewFailed,
+  isInlinePreviewPending,
   isDocumentViewerFile,
   isPresentationViewerFile,
   isPdfViewerFile,
-  isRenderableDocumentViewerFile,
-  isRenderablePresentationViewerFile,
   isSpreadsheetViewerFile,
+  isTrackablePreviewSourceFile,
   resolveViewerToken,
 } from '@/lib/viewer';
 
@@ -24,19 +28,72 @@ test('viewer helper detects supported preview kinds', () => {
 
   assert.equal(isPresentationViewerFile('pptx'), true);
   assert.equal(isPresentationViewerFile('PPT'), true);
-  assert.equal(isRenderablePresentationViewerFile('pptx'), true);
-  assert.equal(isRenderablePresentationViewerFile('ppt'), false);
 
   assert.equal(isDocumentViewerFile('docx'), true);
   assert.equal(isDocumentViewerFile('DOC'), true);
-  assert.equal(isRenderableDocumentViewerFile('docx'), true);
-  assert.equal(isRenderableDocumentViewerFile('doc'), false);
+  assert.equal(isTrackablePreviewSourceFile('docx'), true);
+  assert.equal(isTrackablePreviewSourceFile('ppt'), true);
+  assert.equal(isTrackablePreviewSourceFile('pdf'), false);
 
   assert.equal(getViewerDocumentKind('pdf'), 'pdf');
   assert.equal(getViewerDocumentKind('xlsx'), 'spreadsheet');
   assert.equal(getViewerDocumentKind('pptx'), 'presentation');
   assert.equal(getViewerDocumentKind('docx'), 'document');
   assert.equal(getViewerDocumentKind('zip'), 'unsupported');
+});
+
+test('viewer helper derives trackable preview state and inline file types', () => {
+  assert.deepEqual(getInitialDocumentPreviewState('pdf'), {
+    previewFileType: 'pdf',
+    previewStatus: 'ready',
+  });
+
+  assert.deepEqual(getInitialDocumentPreviewState('pptx'), {
+    previewFileType: 'pdf',
+    previewStatus: 'pending',
+  });
+
+  assert.deepEqual(getInitialDocumentPreviewState('zip'), {
+    previewFileType: null,
+    previewStatus: 'none',
+  });
+
+  assert.equal(
+    getInlineViewerFileType({
+      fileType: 'pptx',
+      previewFileType: 'pdf',
+      previewStatus: 'ready',
+    }),
+    'pdf',
+  );
+
+  assert.equal(
+    getInlineViewerFileType({
+      fileType: 'pptx',
+      previewFileType: 'pdf',
+      previewStatus: 'pending',
+    }),
+    null,
+  );
+
+  assert.equal(
+    isInlinePreviewPending({
+      fileType: 'pptx',
+      previewStatus: 'pending',
+    }),
+    true,
+  );
+
+  assert.equal(
+    isInlinePreviewFailed({
+      fileType: 'docx',
+      previewStatus: 'failed',
+    }),
+    true,
+  );
+
+  assert.equal(buildPreviewFilename('Board Deck.pptx'), 'Board Deck.pdf');
+  assert.equal(buildPreviewFilename('Deal Room'), 'Deal Room.pdf');
 });
 
 test('viewer helper builds gated document paths with optional flags', () => {

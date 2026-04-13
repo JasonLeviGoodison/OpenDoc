@@ -23,12 +23,10 @@ import { apiFetchJson } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import {
   buildViewerDocumentPath,
-  isDocumentViewerFile,
-  isPresentationViewerFile,
+  getInlineViewerFileType,
+  isInlinePreviewFailed,
+  isInlinePreviewPending,
   isPdfViewerFile,
-  isRenderableDocumentViewerFile,
-  isRenderablePresentationViewerFile,
-  isSpreadsheetViewerFile,
 } from '@/lib/viewer';
 
 function ViewerPaneLoading() {
@@ -50,44 +48,15 @@ const PdfDocumentViewer = dynamic(
   },
 );
 
-const SpreadsheetDocumentViewer = dynamic(
-  () =>
-    import('@/components/viewer/spreadsheet-document-viewer').then((module) => ({
-      default: module.SpreadsheetDocumentViewer,
-    })),
-  {
-    loading: ViewerPaneLoading,
-    ssr: false,
-  },
-);
-
-const PresentationDocumentViewer = dynamic(
-  () =>
-    import('@/components/viewer/presentation-document-viewer').then((module) => ({
-      default: module.PresentationDocumentViewer,
-    })),
-  {
-    loading: ViewerPaneLoading,
-    ssr: false,
-  },
-);
-
-const DocxDocumentViewer = dynamic(
-  () =>
-    import('@/components/viewer/docx-document-viewer').then((module) => ({
-      default: module.DocxDocumentViewer,
-    })),
-  {
-    loading: ViewerPaneLoading,
-    ssr: false,
-  },
-);
-
 interface SharedDocumentSummary {
   file_type: string;
   id: string;
   name: string;
   page_count: number;
+  preview_error: string | null;
+  preview_file_type: string | null;
+  preview_page_count: number;
+  preview_status: string;
 }
 
 interface SharedSpace {
@@ -153,6 +122,7 @@ export default function ViewerPage() {
   const [error, setError] = useState('');
   const [currentDocumentId, setCurrentDocumentId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [resolvedPageCount, setResolvedPageCount] = useState(1);
   const [zoom, setZoom] = useState(1);
   const [visitId, setVisitId] = useState<string | null>(null);
   const [visitToken, setVisitToken] = useState<string | null>(null);
@@ -170,18 +140,28 @@ export default function ViewerPage() {
   const currentDocuments = getViewerDocuments(linkData);
   const currentDocument =
     currentDocuments.find((document) => document.id === currentDocumentId) ?? currentDocuments[0] ?? null;
-  const totalPages = currentDocument?.page_count ?? 1;
-  const isPdfDocument = isPdfViewerFile(currentDocument?.file_type);
-  const isSpreadsheetDocument = isSpreadsheetViewerFile(currentDocument?.file_type);
-  const isPresentationDocument = isPresentationViewerFile(currentDocument?.file_type);
-  const isRenderablePresentationDocument = isRenderablePresentationViewerFile(currentDocument?.file_type);
-  const isDocumentPreviewDocument = isDocumentViewerFile(currentDocument?.file_type);
-  const isRenderableDocumentPreview = isRenderableDocumentViewerFile(currentDocument?.file_type);
-  const supportsZoom =
-    isPdfDocument ||
-    isSpreadsheetDocument ||
-    (isPresentationDocument && isRenderablePresentationDocument) ||
-    (isDocumentPreviewDocument && isRenderableDocumentPreview);
+  const totalPages = resolvedPageCount;
+  const inlineViewerFileType = currentDocument
+    ? getInlineViewerFileType({
+        fileType: currentDocument.file_type,
+        previewFileType: currentDocument.preview_file_type,
+        previewStatus: currentDocument.preview_status,
+      })
+    : null;
+  const isPdfDocument = isPdfViewerFile(inlineViewerFileType);
+  const previewPending = currentDocument
+    ? isInlinePreviewPending({
+        fileType: currentDocument.file_type,
+        previewStatus: currentDocument.preview_status,
+      })
+    : false;
+  const previewFailed = currentDocument
+    ? isInlinePreviewFailed({
+        fileType: currentDocument.file_type,
+        previewStatus: currentDocument.preview_status,
+      })
+    : false;
+  const supportsZoom = isPdfDocument;
 
   const resetTrackedVisitState = useCallback(() => {
     pageStartTimeRef.current = null;
@@ -189,6 +169,12 @@ export default function ViewerPage() {
     visitStartTimeRef.current = null;
     viewedPagesRef.current = new Set();
   }, []);
+
+  useEffect(() => {
+    setResolvedPageCount(
+      currentDocument?.preview_page_count || currentDocument?.page_count || 1,
+    );
+  }, [currentDocument?.id, currentDocument?.page_count, currentDocument?.preview_page_count]);
 
   const startViewing = useCallback(
     async (
@@ -271,7 +257,9 @@ export default function ViewerPage() {
       const firstDocument = documents[0] ?? null;
 
       setLinkData(data);
-      setCurrentDocumentId(firstDocument?.id ?? null);
+      setCurrentDocumentId((currentId) =>
+        currentId && documents.some((document) => document.id === currentId) ? currentId : firstDocument?.id ?? null,
+      );
       setCurrentPage(1);
 
       if (data.link_state === 'disabled' || !data.is_active) {
@@ -306,6 +294,21 @@ export default function ViewerPage() {
     }
   });
 
+  const refreshLinkPreview = useEffectEvent(async () => {
+    try {
+      const data = await apiFetchJson<LinkData>(`/api/links/${linkId}`);
+      const documents = getViewerDocuments(data);
+      const firstDocument = documents[0] ?? null;
+
+      setLinkData(data);
+      setCurrentDocumentId((currentId) =>
+        currentId && documents.some((document) => document.id === currentId) ? currentId : firstDocument?.id ?? null,
+      );
+    } catch (requestError) {
+      console.error('Failed to refresh document preview state', requestError);
+    }
+  });
+
   useEffect(() => {
     const updateVisibility = () => {
       setViewerVisible(document.visibilityState === 'visible');
@@ -320,6 +323,18 @@ export default function ViewerPage() {
   useEffect(() => {
     void loadLink();
   }, [linkId]);
+
+  useEffect(() => {
+    if (gate !== 'viewer' || !currentDocument || !previewPending) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      void refreshLinkPreview();
+    }, 5000);
+
+    return () => window.clearInterval(interval);
+  }, [currentDocument, gate, previewPending]);
 
   async function handleEmailSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -534,7 +549,7 @@ export default function ViewerPage() {
   }, [finalizeVisitTracking, gate]);
 
   const documentSource =
-    gate === 'viewer' && currentDocument
+    gate === 'viewer' && currentDocument && isPdfDocument
       ? buildViewerDocumentPath({
           documentId: currentDocument.id,
           linkId,
@@ -553,17 +568,15 @@ export default function ViewerPage() {
   const watermarkLabel = [email || 'CONFIDENTIAL', viewerIp || 'IP HIDDEN', new Date().toLocaleString()].join(
     ' · ',
   );
-  const previewStatusLabel = isSpreadsheetDocument
-    ? 'Workbook preview · page analytics unavailable'
-    : isPresentationDocument
-      ? isRenderablePresentationDocument
-        ? 'Slide preview · page analytics unavailable'
-        : 'Legacy .ppt preview unavailable'
-      : isDocumentPreviewDocument
-        ? isRenderableDocumentPreview
-          ? 'Document preview · page analytics unavailable'
-          : 'Legacy .doc preview unavailable'
-        : 'Secure preview';
+  const previewStatusLabel = isPdfDocument
+    ? currentDocument?.file_type === 'pdf'
+      ? 'Secure PDF preview'
+      : `Trackable PDF preview for ${currentDocument?.file_type.toUpperCase()}`
+    : previewPending
+      ? `Generating trackable preview for ${currentDocument?.file_type.toUpperCase()}`
+      : previewFailed
+        ? `Trackable preview failed for ${currentDocument?.file_type.toUpperCase()}`
+        : 'Secure preview unavailable';
 
   if (gate === 'loading') {
     return (
@@ -795,7 +808,9 @@ export default function ViewerPage() {
                 >
                   <p className="text-sm font-medium">{document.name}</p>
                   <p className="text-xs">
-                    {document.page_count} pages
+                    {document.preview_status === 'pending'
+                      ? 'generating preview...'
+                      : `${document.preview_page_count || document.page_count || 0} pages`}
                     {pendingDocumentId === document.id ? ' · opening...' : ''}
                   </p>
                 </button>
@@ -805,63 +820,48 @@ export default function ViewerPage() {
         ) : null}
 
         <div className="relative flex-1 overflow-hidden bg-[#0f1013]">
-          {documentSource ? (
-            isPdfDocument ? (
-              <PdfDocumentViewer
-                currentPage={currentPage}
-                fileUrl={documentSource}
-                onPageChange={setCurrentPage}
-                zoom={zoom}
-                key={currentDocument.id}
-              />
-            ) : isSpreadsheetDocument ? (
-              <SpreadsheetDocumentViewer
-                fileUrl={documentSource}
-                viewerToken={viewerToken}
-                zoom={zoom}
-                key={currentDocument.id}
-              />
-            ) : isPresentationDocument ? (
-              <PresentationDocumentViewer
-                fileType={currentDocument.file_type}
-                fileUrl={documentSource}
-                viewerToken={viewerToken}
-                zoom={zoom}
-                key={currentDocument.id}
-              />
-            ) : isDocumentPreviewDocument ? (
-              <DocxDocumentViewer
-                fileType={currentDocument.file_type}
-                fileUrl={documentSource}
-                viewerToken={viewerToken}
-                zoom={zoom}
-                key={currentDocument.id}
-              />
-            ) : (
-              <div className="flex h-full items-center justify-center p-8">
-                <div className="flex min-h-[420px] w-[min(780px,85vw)] items-center justify-center rounded-lg border border-border bg-card px-8 py-12 text-center">
-                  <div className="max-w-md space-y-3">
-                    <p className="text-base font-semibold text-foreground">Preview unavailable</p>
-                    <p className="text-sm text-muted-foreground">
-                      This file type cannot be rendered in the secure in-browser preview in the current build.
-                    </p>
-                  </div>
+          {documentSource && isPdfDocument ? (
+            <PdfDocumentViewer
+              currentPage={currentPage}
+              fileUrl={documentSource}
+              onPageChange={setCurrentPage}
+              onPageCountChange={setResolvedPageCount}
+              zoom={zoom}
+              key={`${currentDocument.id}:${currentDocument.preview_status}:${currentDocument.preview_page_count}`}
+            />
+          ) : previewPending ? (
+            <div className="flex h-full items-center justify-center p-8">
+              <div className="flex min-h-[420px] w-[min(780px,85vw)] items-center justify-center rounded-lg border border-border bg-card px-8 py-12 text-center">
+                <div className="max-w-md space-y-3">
+                  <p className="text-base font-semibold text-foreground">Generating trackable preview</p>
+                  <p className="text-sm text-muted-foreground">
+                    Converting this {currentDocument.file_type.toUpperCase()} file into a secure PDF preview so OpenDoc can measure time spent on every slide or page accurately.
+                  </p>
                 </div>
               </div>
-            )
+            </div>
+          ) : previewFailed ? (
+            <div className="flex h-full items-center justify-center p-8">
+              <div className="flex min-h-[420px] w-[min(780px,85vw)] items-center justify-center rounded-lg border border-border bg-card px-8 py-12 text-center">
+                <div className="max-w-md space-y-3">
+                  <p className="text-base font-semibold text-foreground">Trackable preview unavailable</p>
+                  <p className="text-sm text-muted-foreground">
+                    {currentDocument.preview_error || 'This document could not be converted into a trackable PDF preview.'}
+                  </p>
+                </div>
+              </div>
+            </div>
           ) : (
             <div className="flex h-full items-center justify-center p-8">
               <div className="flex min-h-[420px] w-[min(780px,85vw)] items-center justify-center rounded-lg border border-border bg-card px-8 py-12 text-center">
                 <div className="max-w-md space-y-3">
                   <p className="text-base font-semibold text-foreground">
-                    {isSpreadsheetDocument || isPresentationDocument || isDocumentPreviewDocument
-                      ? 'Preparing in-browser preview'
-                      : 'Preview unavailable'}
+                    {currentDocument.file_type === 'pdf' ? 'Preparing secure preview' : 'Preview unavailable'}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {isSpreadsheetDocument || isPresentationDocument || isDocumentPreviewDocument
-                      ? 'Loading the secure in-app renderer for this document.'
-                      : 'This file type cannot be rendered in the browser in the current build.'}
+                    {currentDocument.file_type === 'pdf'
+                      ? 'Loading the secure PDF viewer.'
+                      : 'This file type cannot be rendered inline without a generated trackable preview.'}
                   </p>
                 </div>
               </div>

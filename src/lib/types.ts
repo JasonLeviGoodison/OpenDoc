@@ -7,6 +7,12 @@ export interface Document {
   file_size: number;
   file_type: string;
   page_count: number;
+  preview_error: string | null;
+  preview_file_type: string | null;
+  preview_file_url: string | null;
+  preview_page_count: number;
+  preview_status: string;
+  preview_updated_at: string | null;
   thumbnail_url: string | null;
   folder_id: string | null;
   created_at: string;
@@ -94,6 +100,7 @@ export interface DocumentPageAnalytics {
   file_type: string;
   page_analytics: DocumentPageAnalyticsEntry[];
   page_count: number;
+  preview_status?: string;
   recent_activity: DocumentPageActivity[];
 }
 

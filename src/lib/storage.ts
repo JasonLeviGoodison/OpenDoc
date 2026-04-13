@@ -9,6 +9,10 @@ export function createStoragePath(userId: string, filename: string) {
   return `${userId}/${randomUUID()}.${extension}`;
 }
 
+export function createPreviewStoragePath(userId: string, documentId: string, extension = 'pdf') {
+  return `${userId}/previews/${documentId}.${extension}`;
+}
+
 export function resolveStoredFileUrl(fileUrl: string) {
   if (isStorageObjectPath(fileUrl)) {
     const { data } = supabase.storage.from('documents').getPublicUrl(fileUrl);

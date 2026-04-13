@@ -23,6 +23,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         fileType: documents.fileType,
         id: documents.id,
         pageCount: documents.pageCount,
+        previewStatus: documents.previewStatus,
       })
       .from(documents)
       .where(and(eq(documents.id, id), eq(documents.userId, userId)));
@@ -74,6 +75,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         unique_visits: Number(row.uniqueVisits ?? 0),
       })),
       page_count: document.pageCount,
+      preview_status: document.previewStatus ?? 'none',
       recent_activity: recentActivityRows.map((row) => ({
         duration: Number(row.duration ?? 0),
         entered_at: toIsoString(row.enteredAt),

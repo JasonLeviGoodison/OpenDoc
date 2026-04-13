@@ -140,7 +140,7 @@ export function parseDocumentCreateBody(body: unknown) {
     originalFilename: requiredString(record.original_filename, 'original_filename', {
       maxLength: 255,
     }),
-    pageCount: optionalNumber(record.page_count, 'page_count') ?? 1,
+    pageCount: optionalNumber(record.page_count, 'page_count') ?? 0,
     thumbnailUrl: optionalString(record.thumbnail_url, 'thumbnail_url', { maxLength: 512 }),
   };
 }

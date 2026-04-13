@@ -2,10 +2,10 @@ const PDF_FILE_TYPES = new Set(['pdf']);
 const SPREADSHEET_FILE_TYPES = new Set(['csv', 'xls', 'xlsx']);
 const PRESENTATION_FILE_TYPES = new Set(['ppt', 'pptx']);
 const RICH_DOCUMENT_FILE_TYPES = new Set(['doc', 'docx']);
-const HTML_PRESENTATION_FILE_TYPES = new Set(['pptx']);
-const HTML_DOCUMENT_FILE_TYPES = new Set(['docx']);
+const TRACKABLE_PREVIEW_SOURCE_FILE_TYPES = new Set(['doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx']);
 
 export type ViewerDocumentKind = 'document' | 'pdf' | 'presentation' | 'spreadsheet' | 'unsupported';
+export type DocumentPreviewStatus = 'failed' | 'none' | 'pending' | 'ready';
 
 export function normalizeViewerFileType(fileType: string | null | undefined) {
   return (fileType ?? '').trim().toLowerCase();
@@ -23,16 +23,12 @@ export function isPresentationViewerFile(fileType: string | null | undefined) {
   return PRESENTATION_FILE_TYPES.has(normalizeViewerFileType(fileType));
 }
 
-export function isRenderablePresentationViewerFile(fileType: string | null | undefined) {
-  return HTML_PRESENTATION_FILE_TYPES.has(normalizeViewerFileType(fileType));
-}
-
 export function isDocumentViewerFile(fileType: string | null | undefined) {
   return RICH_DOCUMENT_FILE_TYPES.has(normalizeViewerFileType(fileType));
 }
 
-export function isRenderableDocumentViewerFile(fileType: string | null | undefined) {
-  return HTML_DOCUMENT_FILE_TYPES.has(normalizeViewerFileType(fileType));
+export function isTrackablePreviewSourceFile(fileType: string | null | undefined) {
+  return TRACKABLE_PREVIEW_SOURCE_FILE_TYPES.has(normalizeViewerFileType(fileType));
 }
 
 export function getViewerDocumentKind(fileType: string | null | undefined): ViewerDocumentKind {
@@ -53,6 +49,75 @@ export function getViewerDocumentKind(fileType: string | null | undefined): View
   }
 
   return 'unsupported';
+}
+
+export function getInitialDocumentPreviewState(fileType: string | null | undefined): {
+  previewFileType: string | null;
+  previewStatus: DocumentPreviewStatus;
+} {
+  if (isPdfViewerFile(fileType)) {
+    return {
+      previewFileType: 'pdf',
+      previewStatus: 'ready',
+    };
+  }
+
+  if (isTrackablePreviewSourceFile(fileType)) {
+    return {
+      previewFileType: 'pdf',
+      previewStatus: 'pending',
+    };
+  }
+
+  return {
+    previewFileType: null,
+    previewStatus: 'none',
+  };
+}
+
+export function getInlineViewerFileType({
+  fileType,
+  previewFileType,
+  previewStatus,
+}: {
+  fileType: string | null | undefined;
+  previewFileType: string | null | undefined;
+  previewStatus: DocumentPreviewStatus | string | null | undefined;
+}) {
+  if (isPdfViewerFile(fileType)) {
+    return 'pdf';
+  }
+
+  if (previewStatus === 'ready' && isPdfViewerFile(previewFileType)) {
+    return 'pdf';
+  }
+
+  return null;
+}
+
+export function isInlinePreviewPending({
+  fileType,
+  previewStatus,
+}: {
+  fileType: string | null | undefined;
+  previewStatus: DocumentPreviewStatus | string | null | undefined;
+}) {
+  return !isPdfViewerFile(fileType) && previewStatus === 'pending';
+}
+
+export function isInlinePreviewFailed({
+  fileType,
+  previewStatus,
+}: {
+  fileType: string | null | undefined;
+  previewStatus: DocumentPreviewStatus | string | null | undefined;
+}) {
+  return !isPdfViewerFile(fileType) && previewStatus === 'failed';
+}
+
+export function buildPreviewFilename(originalFilename: string) {
+  const withoutExtension = originalFilename.replace(/\.[^./\\]+$/, '');
+  return withoutExtension === originalFilename ? `${originalFilename}.pdf` : `${withoutExtension}.pdf`;
 }
 
 export function resolveViewerToken({
