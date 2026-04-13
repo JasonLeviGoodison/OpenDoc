@@ -8,6 +8,7 @@ import {
   spaces,
   visits,
 } from '@/db/schema';
+import { getResolvedDocumentPreviewState } from '@/lib/viewer';
 
 type BrandSettingsRow = InferSelectModel<typeof brandSettings>;
 type DocumentLinkRow = InferSelectModel<typeof documentLinks>;
@@ -17,6 +18,12 @@ type SpaceRow = InferSelectModel<typeof spaces>;
 type VisitRow = InferSelectModel<typeof visits>;
 
 export function serializeDocument(row: DocumentRow) {
+  const resolvedPreview = getResolvedDocumentPreviewState({
+    fileType: row.fileType,
+    previewFileType: row.previewFileType,
+    previewStatus: row.previewStatus,
+  });
+
   return {
     created_at: row.createdAt?.toISOString() ?? null,
     file_size: row.fileSize,
@@ -28,10 +35,10 @@ export function serializeDocument(row: DocumentRow) {
     original_filename: row.originalFilename,
     page_count: row.pageCount,
     preview_error: row.previewError,
-    preview_file_type: row.previewFileType,
+    preview_file_type: resolvedPreview.previewFileType,
     preview_file_url: row.previewFileUrl,
     preview_page_count: row.previewPageCount ?? 0,
-    preview_status: row.previewStatus ?? 'none',
+    preview_status: resolvedPreview.previewStatus,
     preview_updated_at: row.previewUpdatedAt?.toISOString() ?? null,
     thumbnail_url: row.thumbnailUrl,
     updated_at: row.updatedAt?.toISOString() ?? null,
@@ -40,15 +47,21 @@ export function serializeDocument(row: DocumentRow) {
 }
 
 export function serializeDocumentSummary(row: DocumentRow) {
+  const resolvedPreview = getResolvedDocumentPreviewState({
+    fileType: row.fileType,
+    previewFileType: row.previewFileType,
+    previewStatus: row.previewStatus,
+  });
+
   return {
     file_type: row.fileType,
     id: row.id,
     name: row.name,
     page_count: row.pageCount,
     preview_error: row.previewError,
-    preview_file_type: row.previewFileType,
+    preview_file_type: resolvedPreview.previewFileType,
     preview_page_count: row.previewPageCount ?? 0,
-    preview_status: row.previewStatus ?? 'none',
+    preview_status: resolvedPreview.previewStatus,
   };
 }
 

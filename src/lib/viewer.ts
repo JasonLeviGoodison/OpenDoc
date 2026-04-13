@@ -75,6 +75,52 @@ export function getInitialDocumentPreviewState(fileType: string | null | undefin
   };
 }
 
+export function getResolvedDocumentPreviewState({
+  fileType,
+  previewFileType,
+  previewStatus,
+}: {
+  fileType: string | null | undefined;
+  previewFileType: string | null | undefined;
+  previewStatus: DocumentPreviewStatus | string | null | undefined;
+}): {
+  previewFileType: string | null;
+  previewStatus: DocumentPreviewStatus;
+} {
+  if (isPdfViewerFile(fileType)) {
+    return {
+      previewFileType: 'pdf',
+      previewStatus: 'ready',
+    };
+  }
+
+  if (previewStatus === 'failed' && isTrackablePreviewSourceFile(fileType)) {
+    return {
+      previewFileType: 'pdf',
+      previewStatus: 'failed',
+    };
+  }
+
+  if (previewStatus === 'ready' && isPdfViewerFile(previewFileType)) {
+    return {
+      previewFileType: 'pdf',
+      previewStatus: 'ready',
+    };
+  }
+
+  if (isTrackablePreviewSourceFile(fileType)) {
+    return {
+      previewFileType: 'pdf',
+      previewStatus: 'pending',
+    };
+  }
+
+  return {
+    previewFileType: null,
+    previewStatus: 'none',
+  };
+}
+
 export function getInlineViewerFileType({
   fileType,
   previewFileType,
@@ -84,35 +130,49 @@ export function getInlineViewerFileType({
   previewFileType: string | null | undefined;
   previewStatus: DocumentPreviewStatus | string | null | undefined;
 }) {
-  if (isPdfViewerFile(fileType)) {
-    return 'pdf';
-  }
-
-  if (previewStatus === 'ready' && isPdfViewerFile(previewFileType)) {
-    return 'pdf';
-  }
-
-  return null;
+  return getResolvedDocumentPreviewState({
+    fileType,
+    previewFileType,
+    previewStatus,
+  }).previewStatus === 'ready'
+    ? 'pdf'
+    : null;
 }
 
 export function isInlinePreviewPending({
   fileType,
+  previewFileType,
   previewStatus,
 }: {
   fileType: string | null | undefined;
+  previewFileType?: string | null | undefined;
   previewStatus: DocumentPreviewStatus | string | null | undefined;
 }) {
-  return !isPdfViewerFile(fileType) && previewStatus === 'pending';
+  return (
+    getResolvedDocumentPreviewState({
+      fileType,
+      previewFileType,
+      previewStatus,
+    }).previewStatus === 'pending'
+  );
 }
 
 export function isInlinePreviewFailed({
   fileType,
+  previewFileType,
   previewStatus,
 }: {
   fileType: string | null | undefined;
+  previewFileType?: string | null | undefined;
   previewStatus: DocumentPreviewStatus | string | null | undefined;
 }) {
-  return !isPdfViewerFile(fileType) && previewStatus === 'failed';
+  return (
+    getResolvedDocumentPreviewState({
+      fileType,
+      previewFileType,
+      previewStatus,
+    }).previewStatus === 'failed'
+  );
 }
 
 export function buildPreviewFilename(originalFilename: string) {

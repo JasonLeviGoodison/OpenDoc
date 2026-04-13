@@ -4,6 +4,7 @@ import { and, desc, eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { documentLinks, documents, pageViews, visits } from '@/db/schema';
 import { requireUserId, RouteError, toErrorResponse } from '@/lib/server/auth';
+import { getResolvedDocumentPreviewState } from '@/lib/viewer';
 
 function toIsoString(value: Date | string | null | undefined) {
   if (!value) {
@@ -23,6 +24,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         fileType: documents.fileType,
         id: documents.id,
         pageCount: documents.pageCount,
+        previewFileType: documents.previewFileType,
         previewStatus: documents.previewStatus,
       })
       .from(documents)
@@ -65,6 +67,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       .orderBy(desc(sql`coalesce(${pageViews.leftAt}, ${pageViews.enteredAt})`))
       .limit(40);
 
+    const resolvedPreview = getResolvedDocumentPreviewState({
+      fileType: document.fileType,
+      previewFileType: document.previewFileType,
+      previewStatus: document.previewStatus,
+    });
+
     return NextResponse.json({
       file_type: document.fileType,
       page_analytics: pageAnalyticsRows.map((row) => ({
@@ -75,7 +83,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         unique_visits: Number(row.uniqueVisits ?? 0),
       })),
       page_count: document.pageCount,
-      preview_status: document.previewStatus ?? 'none',
+      preview_status: resolvedPreview.previewStatus,
       recent_activity: recentActivityRows.map((row) => ({
         duration: Number(row.duration ?? 0),
         entered_at: toIsoString(row.enteredAt),

@@ -1,10 +1,55 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { brandSettings, documentLinks, documents, spaceDocuments, spaces } from '@/db/schema';
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, inArray } from 'drizzle-orm';
 import { getLinkAvailability } from '@/lib/link-access';
 import { serializeDocumentSummary, serializeSpace } from '@/lib/serializers';
 import { RouteError, toErrorResponse } from '@/lib/server/auth';
+import { getResolvedDocumentPreviewState, isTrackablePreviewSourceFile } from '@/lib/viewer';
+
+const PREVIEW_RECOVERY_STALE_MS = 2 * 60_000;
+
+function getDocumentIdsNeedingPreview(
+  rows: Array<{
+    fileType: string;
+    id: string;
+    previewFileType: string | null;
+    previewUpdatedAt?: Date | null;
+    previewStatus: string | null;
+  }>,
+) {
+  return rows
+    .filter((row) => {
+      if (!isTrackablePreviewSourceFile(row.fileType)) {
+        return false;
+      }
+
+      const resolvedPreview = getResolvedDocumentPreviewState({
+        fileType: row.fileType,
+        previewFileType: row.previewFileType,
+        previewStatus: row.previewStatus,
+      });
+
+      if (resolvedPreview.previewStatus !== 'pending') {
+        return false;
+      }
+
+      if ((row.previewStatus ?? 'none') === 'none') {
+        return true;
+      }
+
+      if ((row.previewStatus ?? 'none') !== 'pending') {
+        return false;
+      }
+
+      if (!row.previewUpdatedAt) {
+        return true;
+      }
+
+      return Date.now() - row.previewUpdatedAt.getTime() >= PREVIEW_RECOVERY_STALE_MS;
+    })
+    .map((row) => row.id);
+}
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ linkId: string }> }) {
   try {
@@ -16,10 +61,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ link
     }
 
     let document = null;
+    const previewJobIds = new Set<string>();
 
     if (link.documentId) {
       const [row] = await db.select().from(documents).where(eq(documents.id, link.documentId));
       document = row ? serializeDocumentSummary(row) : null;
+
+      for (const documentId of getDocumentIdsNeedingPreview(row ? [row] : [])) {
+        previewJobIds.add(documentId);
+      }
     }
 
     let space = null;
@@ -41,6 +91,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ link
             serializeDocumentSummary(linkedDocument),
           ),
         };
+
+        for (const documentId of getDocumentIdsNeedingPreview(
+          spaceDocumentRows.map(({ document: linkedDocument }) => linkedDocument),
+        )) {
+          previewJobIds.add(documentId);
+        }
       }
     }
 
@@ -48,6 +104,34 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ link
       .select()
       .from(brandSettings)
       .where(eq(brandSettings.userId, link.userId));
+
+    if (previewJobIds.size > 0) {
+      const previewJobIdList = [...previewJobIds];
+      const now = new Date();
+
+      await db
+        .update(documents)
+        .set({
+          previewError: null,
+          previewFileType: 'pdf',
+          previewStatus: 'pending',
+          previewUpdatedAt: now,
+          updatedAt: now,
+        })
+        .where(inArray(documents.id, previewJobIdList));
+
+      after(async () => {
+        try {
+          const { ensureDocumentPreview } = await import('@/lib/server/document-preview');
+
+          for (const documentId of previewJobIdList) {
+            await ensureDocumentPreview(documentId);
+          }
+        } catch (previewError) {
+          console.error('Failed to recover document preview generation', previewError);
+        }
+      });
+    }
 
     return NextResponse.json({
       allow_download: link.allowDownload ?? false,

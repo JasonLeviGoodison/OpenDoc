@@ -10,6 +10,7 @@ import { verifySignedToken } from '@/lib/security';
 import { resolveStoredFileUrl } from '@/lib/storage';
 import {
   buildPreviewFilename,
+  getResolvedDocumentPreviewState,
   getInlineViewerFileType,
   isInlinePreviewFailed,
   isInlinePreviewPending,
@@ -87,19 +88,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ link
 
     let storageObjectPath = document.fileUrl;
     let inlineFilename = document.originalFilename;
+    const resolvedPreview = getResolvedDocumentPreviewState({
+      fileType: document.fileType,
+      previewFileType: document.previewFileType,
+      previewStatus: document.previewStatus,
+    });
 
     if (!downloadRequested) {
       const inlineViewerFileType = getInlineViewerFileType({
         fileType: document.fileType,
-        previewFileType: document.previewFileType,
-        previewStatus: document.previewStatus,
+        previewFileType: resolvedPreview.previewFileType,
+        previewStatus: resolvedPreview.previewStatus,
       });
 
       if (inlineViewerFileType !== 'pdf') {
         if (
           isInlinePreviewPending({
             fileType: document.fileType,
-            previewStatus: document.previewStatus,
+            previewFileType: resolvedPreview.previewFileType,
+            previewStatus: resolvedPreview.previewStatus,
           })
         ) {
           throw new RouteError('Preview is still processing.', 409);
@@ -108,7 +115,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ link
         if (
           isInlinePreviewFailed({
             fileType: document.fileType,
-            previewStatus: document.previewStatus,
+            previewFileType: resolvedPreview.previewFileType,
+            previewStatus: resolvedPreview.previewStatus,
           })
         ) {
           throw new RouteError(document.previewError || 'Preview generation failed.', 409);

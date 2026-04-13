@@ -6,6 +6,7 @@ import {
   buildViewerDocumentPath,
   getInitialDocumentPreviewState,
   getInlineViewerFileType,
+  getResolvedDocumentPreviewState,
   getViewerDocumentKind,
   isInlinePreviewFailed,
   isInlinePreviewPending,
@@ -58,6 +59,18 @@ test('viewer helper derives trackable preview state and inline file types', () =
     previewStatus: 'none',
   });
 
+  assert.deepEqual(
+    getResolvedDocumentPreviewState({
+      fileType: 'pptx',
+      previewFileType: null,
+      previewStatus: 'none',
+    }),
+    {
+      previewFileType: 'pdf',
+      previewStatus: 'pending',
+    },
+  );
+
   assert.equal(
     getInlineViewerFileType({
       fileType: 'pptx',
@@ -79,7 +92,7 @@ test('viewer helper derives trackable preview state and inline file types', () =
   assert.equal(
     isInlinePreviewPending({
       fileType: 'pptx',
-      previewStatus: 'pending',
+      previewStatus: 'none',
     }),
     true,
   );
