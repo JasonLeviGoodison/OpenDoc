@@ -27,6 +27,7 @@
     "lint": "eslint",
     "test": "node --import tsx --test tests/*.test.ts",
     "previews:backfill": "node --import tsx scripts/backfill-document-previews.ts",
+    "db:baseline": "node --import tsx scripts/baseline-initial-migration.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:migrate:deploy": "node --import tsx scripts/run-build-migrations.ts",

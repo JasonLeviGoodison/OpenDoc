@@ -80,6 +80,7 @@ Deployment notes:
 
 - Drizzle migrations should use a direct Postgres connection, not the Supabase pooled URL on port `6543`.
 - Set `MIGRATION_DATABASE_URL` to your direct `5432` connection in production.
+- If your database was originally created with `npm run db:push`, run `npm run db:baseline` once before switching to `npm run db:migrate`.
 - Builds auto-run `npm run db:migrate` on Vercel when `VERCEL_GIT_COMMIT_REF=main`.
 - On other platforms, set `MIGRATE_ON_BUILD=1` if you want the same behavior.
 
