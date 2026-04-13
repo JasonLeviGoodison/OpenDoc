@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
 
     if (isTrackablePreviewSourceFile(fileExt) && !(await hasDocumentPreviewRuntime())) {
       throw new RouteError(
-        'Trackable previews for PowerPoint, Word, and Excel files require LibreOffice (`soffice`) in the runtime environment.',
+        'Trackable previews for PowerPoint, Word, and Excel files require either DOCUMENT_CONVERTER_URL or LibreOffice (`soffice`) in the runtime environment.',
         503,
       );
     }

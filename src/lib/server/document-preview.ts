@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { eq } from 'drizzle-orm';
@@ -30,6 +30,29 @@ const SOFFICE_CANDIDATES = [
   '/usr/local/bin/soffice',
   'soffice',
 ].filter((value): value is string => Boolean(value));
+
+function getDocumentConverterConfig() {
+  const url = process.env.DOCUMENT_CONVERTER_URL?.trim();
+
+  if (!url) {
+    return null;
+  }
+
+  const username = process.env.DOCUMENT_CONVERTER_USERNAME;
+  const password = process.env.DOCUMENT_CONVERTER_PASSWORD;
+
+  if (!username || !password) {
+    throw new Error(
+      'DOCUMENT_CONVERTER_USERNAME and DOCUMENT_CONVERTER_PASSWORD must be set when DOCUMENT_CONVERTER_URL is configured. See services/document-converter/README.md for setup instructions.',
+    );
+  }
+
+  return {
+    password,
+    url: url.replace(/\/+$/, ''),
+    username,
+  };
+}
 
 class PdfJsDOMMatrixStub {
   a = 1;
@@ -224,6 +247,10 @@ async function runSofficeCommand(args: string[]) {
 }
 
 export async function hasDocumentPreviewRuntime() {
+  if (process.env.DOCUMENT_CONVERTER_URL?.trim()) {
+    return true;
+  }
+
   try {
     await runSofficeCommand(['--version']);
     return true;
@@ -233,6 +260,50 @@ export async function hasDocumentPreviewRuntime() {
 }
 
 async function runSofficeConversion(inputPath: string, outputDir: string) {
+  const documentConverter = getDocumentConverterConfig();
+
+  if (documentConverter) {
+    const inputFilename = basename(inputPath);
+    const outputPath = join(outputDir, buildPreviewFilename(inputFilename));
+    const formData = new FormData();
+    const inputBuffer = await readFile(inputPath);
+
+    formData.append('files', new Blob([inputBuffer]), inputFilename);
+
+    let response: Response;
+
+    try {
+      response = await fetch(`${documentConverter.url}/forms/libreoffice/convert`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Basic ${Buffer.from(
+            `${documentConverter.username}:${documentConverter.password}`,
+          ).toString('base64')}`,
+        },
+        body: formData,
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Gotenberg conversion request failed: ${error.message}`);
+      }
+
+      throw new Error('Gotenberg conversion request failed.');
+    }
+
+    if (!response.ok) {
+      const errorText = (await response.text()).trim();
+
+      throw new Error(
+        errorText
+          ? `Gotenberg conversion failed (${response.status} ${response.statusText}): ${errorText}`
+          : `Gotenberg conversion failed (${response.status} ${response.statusText}).`,
+      );
+    }
+
+    await writeFile(outputPath, Buffer.from(await response.arrayBuffer()));
+    return;
+  }
+
   await runSofficeCommand([
     '--headless',
     '--nologo',
