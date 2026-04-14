@@ -34,6 +34,7 @@ type SpaceDocument = Document & {
 export default function SpaceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useUser();
+  const userId = user?.id;
   const [space, setSpace] = useState<Space | null>(null);
   const [spaceDocuments, setSpaceDocuments] = useState<SpaceDocument[]>([]);
   const [allDocuments, setAllDocuments] = useState<Document[]>([]);
@@ -43,7 +44,7 @@ export default function SpaceDetailPage() {
   const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
-    if (!user || !id) {
+    if (!userId || !id) {
       return;
     }
 
@@ -70,15 +71,15 @@ export default function SpaceDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [id, user]);
+  }, [id, userId]);
 
   useEffect(() => {
-    if (!user || !id) {
+    if (!userId || !id) {
       return;
     }
 
     void loadData();
-  }, [id, loadData, user]);
+  }, [id, loadData, userId]);
 
   async function addDocument(documentId: string) {
     await apiFetchJson(`/api/spaces/${id}/documents`, {

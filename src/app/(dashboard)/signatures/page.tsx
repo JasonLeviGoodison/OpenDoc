@@ -14,11 +14,12 @@ import { formatDate } from '@/lib/utils';
 
 export default function SignaturesPage() {
   const { user } = useUser();
+  const userId = user?.id;
   const [signatures, setSignatures] = useState<Signature[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadSignatures = useEffectEvent(async () => {
-    if (!user) {
+    if (!userId) {
       return;
     }
 
@@ -35,12 +36,12 @@ export default function SignaturesPage() {
   });
 
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       return;
     }
 
     void loadSignatures();
-  }, [user]);
+  }, [userId]);
 
   return (
     <div>

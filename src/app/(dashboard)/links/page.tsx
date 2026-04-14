@@ -36,13 +36,14 @@ type ShareLink = DocumentLink & {
 
 export default function LinksPage() {
   const { user } = useUser();
+  const userId = user?.id;
   const [links, setLinks] = useState<ShareLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const loadLinks = useCallback(async () => {
-    if (!user) {
+    if (!userId) {
       return;
     }
 
@@ -56,15 +57,15 @@ export default function LinksPage() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [userId]);
 
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       return;
     }
 
     void loadLinks();
-  }, [loadLinks, user]);
+  }, [loadLinks, userId]);
 
   function copyLink(linkId: string) {
     navigator.clipboard.writeText(`${window.location.origin}/view/${linkId}`);

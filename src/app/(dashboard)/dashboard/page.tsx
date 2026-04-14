@@ -14,12 +14,13 @@ import { formatDate, formatDuration } from '@/lib/utils';
 
 export default function DashboardPage() {
   const { user } = useUser();
+  const userId = user?.id;
   const [documents, setDocuments] = useState<Document[]>([]);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadData = useEffectEvent(async () => {
-    if (!user) {
+    if (!userId) {
       return;
     }
 
@@ -41,12 +42,12 @@ export default function DashboardPage() {
   });
 
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       return;
     }
 
     void loadData();
-  }, [user]);
+  }, [userId]);
 
   const totalViews = visits.length;
   const uniqueVisitors = new Set(visits.map((visit) => visit.visitor_email).filter(Boolean)).size;

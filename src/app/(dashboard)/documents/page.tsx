@@ -27,6 +27,7 @@ interface SignedUploadPayload {
 
 export default function DocumentsPage() {
   const { user } = useUser();
+  const userId = user?.id;
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -34,7 +35,7 @@ export default function DocumentsPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const loadDocuments = useCallback(async () => {
-    if (!user) {
+    if (!userId) {
       return;
     }
 
@@ -48,15 +49,15 @@ export default function DocumentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [userId]);
 
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       return;
     }
 
     void loadDocuments();
-  }, [loadDocuments, user]);
+  }, [loadDocuments, userId]);
 
   async function handleUpload(files: File[], name: string) {
     const file = files[0];

@@ -18,6 +18,7 @@ import { formatDate } from '@/lib/utils';
 
 export default function SpacesPage() {
   const { user } = useUser();
+  const userId = user?.id;
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
@@ -28,7 +29,7 @@ export default function SpacesPage() {
   const [creating, setCreating] = useState(false);
 
   const loadSpaces = useCallback(async () => {
-    if (!user) {
+    if (!userId) {
       return;
     }
 
@@ -42,15 +43,15 @@ export default function SpacesPage() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [userId]);
 
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       return;
     }
 
     void loadSpaces();
-  }, [loadSpaces, user]);
+  }, [loadSpaces, userId]);
 
   async function createSpace() {
     setCreating(true);

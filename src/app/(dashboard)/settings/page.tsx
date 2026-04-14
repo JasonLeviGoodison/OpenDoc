@@ -14,6 +14,7 @@ import type { BrandSettings } from '@/lib/types';
 
 export default function SettingsPage() {
   const { user } = useUser();
+  const userId = user?.id;
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [companyName, setCompanyName] = useState('');
@@ -22,7 +23,7 @@ export default function SettingsPage() {
   const [logoUrl, setLogoUrl] = useState('');
 
   const loadSettings = useEffectEvent(async () => {
-    if (!user) {
+    if (!userId) {
       return;
     }
 
@@ -41,12 +42,12 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       return;
     }
 
     void loadSettings();
-  }, [user]);
+  }, [userId]);
 
   async function saveSettings() {
     setSaving(true);

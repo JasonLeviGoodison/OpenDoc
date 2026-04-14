@@ -15,12 +15,13 @@ import { formatDate, formatDuration } from '@/lib/utils';
 
 export default function AnalyticsPage() {
   const { user } = useUser();
+  const userId = user?.id;
   const [visits, setVisits] = useState<Visit[]>([]);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('30d');
 
   const loadData = useEffectEvent(async () => {
-    if (!user) {
+    if (!userId) {
       return;
     }
 
@@ -38,12 +39,12 @@ export default function AnalyticsPage() {
   });
 
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       return;
     }
 
     void loadData();
-  }, [user, timeRange]);
+  }, [timeRange, userId]);
 
   const totalViews = visits.length;
   const uniqueVisitors = new Set(visits.map((visit) => visit.visitor_email).filter(Boolean)).size;
