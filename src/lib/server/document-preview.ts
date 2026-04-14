@@ -274,6 +274,7 @@ async function runSofficeConversion(inputPath: string, outputDir: string) {
     const inputBuffer = await readFile(inputPath);
 
     formData.append('files', new Blob([inputBuffer]), inputFilename);
+    formData.append('pdfa', 'PDF/A-2b');
 
     let response: Response;
 
@@ -316,7 +317,7 @@ async function runSofficeConversion(inputPath: string, outputDir: string) {
     '--norestore',
     '--nolockcheck',
     '--convert-to',
-    'pdf',
+    'pdf:writer_pdf_Export:{"SelectPdfVersion":2}',
     '--outdir',
     outputDir,
     inputPath,
