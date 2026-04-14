@@ -147,13 +147,14 @@ async function getPdfJsGetDocument() {
   ensurePdfJsNodeGlobals();
 
   if (!pdfJsGetDocumentPromise) {
-    pdfJsGetDocumentPromise = import('pdfjs-dist/legacy/build/pdf.mjs').then(
-      (pdfjs) => {
-        const workerPath = require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs');
-        pdfjs.GlobalWorkerOptions.workerSrc = workerPath;
-        return pdfjs.getDocument;
-      },
-    );
+    pdfJsGetDocumentPromise = (async () => {
+      // Pre-load the worker module into globalThis so pdfjs uses it directly
+      // instead of trying to dynamically import pdf.worker.mjs (which fails on Vercel).
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      (globalThis as Record<string, unknown>).pdfjsWorker = require('pdfjs-dist/legacy/build/pdf.worker.mjs');
+      const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+      return getDocument;
+    })();
   }
 
   return await pdfJsGetDocumentPromise;
