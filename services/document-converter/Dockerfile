@@ -6,7 +6,7 @@ RUN apt-get update \
         git \
         python3 \
         python3-pip \
-    && pip3 install --no-cache-dir fonttools \
+    && pip3 install --no-cache-dir --break-system-packages fonttools \
     && rm -rf /var/lib/apt/lists/*
 
 RUN git clone --depth=1 --filter=blob:none --sparse https://github.com/google/fonts /tmp/google-fonts \
