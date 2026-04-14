@@ -160,6 +160,37 @@ async function getPdfJsGetDocument() {
   return await pdfJsGetDocumentPromise;
 }
 
+/**
+ * Re-process a PDF through Gotenberg's PDF engines (which uses Ghostscript
+ * under the hood) to fix malformed TrueType font tables that Chrome's OTS
+ * rejects. Ghostscript re-encodes the fonts cleanly.
+ */
+async function sanitizePdfFonts(
+  converter: { url: string; username: string; password: string },
+  pdfBuffer: Buffer,
+  filename: string,
+): Promise<Buffer> {
+  const formData = new FormData();
+  formData.append('files', new Blob([new Uint8Array(pdfBuffer)]), filename.replace(/\.[^.]+$/, '.pdf'));
+  formData.append('pdfa', 'PDF/A-2b');
+
+  const response = await fetch(`${converter.url}/forms/pdfengines/convert`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${converter.username}:${converter.password}`).toString('base64')}`,
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    // If re-processing fails, return the original — better than nothing
+    console.warn('PDF font sanitization failed, using original:', response.status);
+    return pdfBuffer;
+  }
+
+  return Buffer.from(await response.arrayBuffer());
+}
+
 function getPreviewFailureMessage(error: unknown) {
   if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
     return 'Preview generation requires LibreOffice (`soffice`) in the runtime environment.';
@@ -306,7 +337,12 @@ async function runSofficeConversion(inputPath: string, outputDir: string) {
       );
     }
 
-    await writeFile(outputPath, Buffer.from(await response.arrayBuffer()));
+    const pdfBuffer = Buffer.from(await response.arrayBuffer());
+
+    // Re-process through Gotenberg's PDF engines to fix TrueType font tables
+    // that Chrome's OTS rejects (glyf bytecode > maxSizeOfInstructions).
+    const sanitizedPdf = await sanitizePdfFonts(documentConverter, pdfBuffer, inputFilename);
+    await writeFile(outputPath, sanitizedPdf);
     return;
   }
 
