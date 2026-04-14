@@ -148,7 +148,11 @@ async function getPdfJsGetDocument() {
 
   if (!pdfJsGetDocumentPromise) {
     pdfJsGetDocumentPromise = import('pdfjs-dist/legacy/build/pdf.mjs').then(
-      ({ getDocument }) => getDocument,
+      (pdfjs) => {
+        const workerPath = require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs');
+        pdfjs.GlobalWorkerOptions.workerSrc = workerPath;
+        return pdfjs.getDocument;
+      },
     );
   }
 
