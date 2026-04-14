@@ -2,6 +2,8 @@
 
 This service runs [Gotenberg](https://gotenberg.dev) on Render so OpenDoc can convert `.pptx`, `.docx`, and `.xlsx` files to PDF.
 
+The Docker image installs `fonts-liberation`, `fonts-dejavu`, `fonts-noto-core`, and `fonts-freefont-ttf` so common Office documents do not render as empty square boxes. If your files depend on custom brand fonts, extend the image further and add those font files too.
+
 ## Quick Start
 
 1. Deploy on Render.
