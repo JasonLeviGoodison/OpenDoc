@@ -2,7 +2,7 @@
 
 This service runs [Gotenberg](https://gotenberg.dev) on Render so OpenDoc can convert `.pptx`, `.docx`, and `.xlsx` files to PDF.
 
-The Docker image installs `fonts-liberation`, `fonts-dejavu`, `fonts-noto-core`, and `fonts-freefont-ttf` so common Office documents do not render as empty square boxes. If your files depend on custom brand fonts, extend the image further and add those font files too.
+The Docker image installs baseline Debian fonts plus a curated Google Fonts set for common Google Slides decks, including Roboto, Open Sans, Lato, Montserrat, Oswald, Raleway, PT Sans, PT Serif, Nunito, Nunito Sans, Poppins, Inter, Source Sans, Source Serif, Source Code Pro, Playfair Display, Merriweather, Ubuntu, Rubik, Work Sans, Fira Sans, Quicksand, Cabin, Barlow, and DM Sans. If your files depend on custom brand fonts outside that set, extend the image further and add those font files too.
 
 ## Quick Start
 
