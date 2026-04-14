@@ -4,6 +4,9 @@ RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         ca-certificates \
         git \
+        python3 \
+        python3-pip \
+    && pip3 install --no-cache-dir fonttools \
     && rm -rf /var/lib/apt/lists/*
 
 RUN git clone --depth=1 --filter=blob:none --sparse https://github.com/google/fonts /tmp/google-fonts \
@@ -41,7 +44,31 @@ RUN git clone --depth=1 --filter=blob:none --sparse https://github.com/google/fo
     && find /tmp/google-fonts \
         \( -name '*.ttf' -o -name '*.otf' \) \
         -type f \
-        -exec cp {} /google-fonts/ \;
+        -exec cp {} /google-fonts/ \; \
+    && python3 - <<'PY'
+import glob
+from fontTools.ttLib import TTFont
+
+for path in glob.glob('/google-fonts/*.ttf'):
+    try:
+        font = TTFont(path)
+        if 'fpgm' in font:
+            del font['fpgm']
+        if 'prep' in font:
+            del font['prep']
+        if 'cvt ' in font:
+            del font['cvt ']
+        if 'maxp' in font:
+            font['maxp'].maxSizeOfInstructions = 0
+        if 'glyf' in font:
+            for glyph_name in font.getGlyphOrder():
+                glyph = font['glyf'][glyph_name]
+                if hasattr(glyph, 'program'):
+                    glyph.program = None
+        font.save(path)
+    except Exception as error:
+        print(f'Warning: could not dehint {path}: {error}')
+PY
 
 FROM gotenberg/gotenberg:8.30.1-libreoffice
 
