@@ -147,9 +147,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ link
       throw new RouteError('Document storage URL is invalid.', 500);
     }
 
+    console.log('[DocumentRoute] Serving:', {
+      documentId,
+      fileType: document.fileType,
+      previewStatus: document.previewStatus,
+      previewFileUrl: document.previewFileUrl,
+      storageObjectPath,
+      sourceUrl: sourceUrl.substring(0, 120) + '...',
+    });
+
     const range = req.headers.get('range');
     const upstream = await fetch(sourceUrl, {
       headers: range ? { range } : undefined,
+    });
+
+    console.log('[DocumentRoute] Upstream response:', {
+      status: upstream.status,
+      contentType: upstream.headers.get('content-type'),
+      contentLength: upstream.headers.get('content-length'),
     });
 
     if (!upstream.ok) {

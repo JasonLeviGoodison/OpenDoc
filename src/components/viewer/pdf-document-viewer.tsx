@@ -6,6 +6,24 @@ import { Document, Page, pdfjs } from 'react-pdf';
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
+if (typeof window !== 'undefined') {
+  console.log('[PdfViewer] pdfjs.version:', pdfjs.version);
+  console.log('[PdfViewer] workerSrc:', pdfjs.GlobalWorkerOptions.workerSrc);
+
+  const origFetch = window.fetch;
+  const patchedFetch: typeof window.fetch = async (input, init) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : (input as Request).url;
+    if (url.includes('pdf.worker')) {
+      console.log('[PdfViewer] Worker fetch:', url);
+      const resp = await origFetch(input, init);
+      console.log('[PdfViewer] Worker fetch status:', resp.status, resp.headers.get('content-type'));
+      return resp;
+    }
+    return origFetch(input, init);
+  };
+  window.fetch = patchedFetch;
+}
+
 interface PdfDocumentViewerProps {
   currentPage: number;
   fileUrl: string;
@@ -62,21 +80,24 @@ export function PdfDocumentViewer({
           </div>
         }
         onLoadError={(error) => {
+          console.error('[PdfViewer] Document load error:', error);
           setLoadError(error.message);
           setNumPages(0);
         }}
-        onLoadSuccess={({ numPages: loadedPages }: { numPages: number }) => {
+        onLoadSuccess={(pdf: { numPages: number }) => {
+          console.log('[PdfViewer] Document loaded:', pdf.numPages, 'pages');
+          console.log('[PdfViewer] PDF fingerprint:', (pdf as Record<string, unknown>).fingerprints);
           setLoadError(null);
-          setNumPages(loadedPages);
-          onPageCountChange?.(loadedPages);
+          setNumPages(pdf.numPages);
+          onPageCountChange?.(pdf.numPages);
 
           if (currentPage < 1) {
             onPageChange(1);
             return;
           }
 
-          if (currentPage > loadedPages) {
-            onPageChange(loadedPages);
+          if (currentPage > pdf.numPages) {
+            onPageChange(pdf.numPages);
           }
         }}
       >
@@ -110,6 +131,8 @@ export function PdfDocumentViewer({
                       Rendering page {clampedCurrentPage}...
                     </div>
                   }
+                  onRenderError={(error) => console.error('[PdfViewer] Page render error:', clampedCurrentPage, error)}
+                  onRenderSuccess={() => console.log('[PdfViewer] Page rendered successfully:', clampedCurrentPage, 'width:', Math.round(pageWidth * zoom))}
                   pageNumber={clampedCurrentPage}
                   renderAnnotationLayer={false}
                   renderTextLayer={false}
