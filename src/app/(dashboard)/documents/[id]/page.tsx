@@ -34,6 +34,7 @@ import { formatDate, formatDateTime, formatDuration } from '@/lib/utils';
 export default function DocumentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useUser();
+  const userId = user?.id;
   const [document, setDocument] = useState<Document | null>(null);
   const [links, setLinks] = useState<DocumentLink[]>([]);
   const [pageAnalytics, setPageAnalytics] = useState<DocumentPageAnalytics | null>(null);
@@ -57,7 +58,7 @@ export default function DocumentDetailPage() {
   const [creatingLink, setCreatingLink] = useState(false);
 
   const loadData = useCallback(async () => {
-    if (!user || !id) {
+    if (!userId || !id) {
       return;
     }
 
@@ -84,15 +85,15 @@ export default function DocumentDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [id, user]);
+  }, [id, userId]);
 
   useEffect(() => {
-    if (!user || !id) {
+    if (!userId || !id) {
       return;
     }
 
     void loadData();
-  }, [id, loadData, user]);
+  }, [id, loadData, userId]);
 
   async function createLink() {
     setCreatingLink(true);
@@ -215,6 +216,7 @@ export default function DocumentDetailPage() {
       unique_visits: entry?.unique_visits ?? 0,
     };
   });
+  const sessionRows = pageAnalytics?.session_analytics ?? [];
   const maxPageDuration = Math.max(...pageRows.map((page) => page.total_duration), 1);
 
   return (
@@ -392,9 +394,9 @@ export default function DocumentDetailPage() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-bold text-foreground uppercase tracking-wide">
-                  Page Engagement
+                  Session Page Breakdown
                 </h2>
-                <Badge>{pageRows.length} page{pageRows.length !== 1 ? 's' : ''}</Badge>
+                <Badge>{sessionRows.length} session{sessionRows.length !== 1 ? 's' : ''}</Badge>
               </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -406,37 +408,66 @@ export default function DocumentDetailPage() {
                 </div>
               ) : null}
 
-              {pageRows.length === 0 ? (
+              {sessionRows.length === 0 ? (
                 <div className="py-12 text-center text-sm text-muted-foreground">
-                  No page analytics yet.
+                  No session-level page analytics yet.
                 </div>
               ) : (
                 <div className="divide-y divide-border">
-                  {pageRows.map((page) => (
-                    <div key={page.page_number} className="px-6 py-4">
-                      <div className="mb-2 flex items-center justify-between gap-4">
+                  {sessionRows.map((session) => (
+                    <div key={session.visit_id} className="px-6 py-4">
+                      <div className="flex items-start justify-between gap-4">
                         <div>
                           <p className="text-sm font-medium text-foreground">
-                            Page {page.page_number}
+                            {session.visitor_email || session.visitor_name || 'Anonymous'}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {page.unique_visits} viewer{page.unique_visits !== 1 ? 's' : ''} · {page.total_views} tracked session{page.total_views !== 1 ? 's' : ''}
+                            {session.created_at
+                              ? `Visited ${formatDateTime(session.created_at)}`
+                              : 'Visit time unavailable'}
+                            {session.last_activity_at
+                              ? ` · Last activity ${formatDateTime(session.last_activity_at)}`
+                              : ''}
                           </p>
                         </div>
                         <div className="text-right">
                           <p className="text-sm font-medium text-foreground">
-                            {formatDuration(page.total_duration)}
+                            {formatDuration(session.tracked_duration)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {page.last_viewed_at ? `Last viewed ${formatDateTime(page.last_viewed_at)}` : 'No views yet'}
+                            {session.page_count_viewed} page
+                            {session.page_count_viewed !== 1 ? 's' : ''} ·{' '}
+                            {Math.round(session.completion_rate)}% completion
                           </p>
                         </div>
                       </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-card-hover">
-                        <div
-                          className="h-full rounded-full bg-accent"
-                          style={{ width: `${Math.max((page.total_duration / maxPageDuration) * 100, page.total_duration > 0 ? 6 : 0)}%` }}
-                        />
+
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                        {session.page_analytics.map((page) => (
+                          <div
+                            key={`${session.visit_id}:${page.page_number}`}
+                            className="rounded-lg border border-border bg-card-hover/60 px-3 py-3"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                                  Page {page.page_number}
+                                </p>
+                                <p className="mt-1 text-sm font-medium text-foreground">
+                                  {formatDuration(page.total_duration)}
+                                </p>
+                              </div>
+                              <p className="text-[11px] text-muted-foreground">
+                                {page.total_views} tracked view{page.total_views !== 1 ? 's' : ''}
+                              </p>
+                            </div>
+                            <p className="mt-2 text-[11px] text-muted-foreground">
+                              {page.last_viewed_at
+                                ? `Last viewed ${formatDateTime(page.last_viewed_at)}`
+                                : 'No timestamp recorded'}
+                            </p>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   ))}
@@ -448,33 +479,52 @@ export default function DocumentDetailPage() {
           <Card>
             <CardHeader>
               <h2 className="text-sm font-bold text-foreground uppercase tracking-wide">
-                Recent Page Activity
+                Aggregate Page Engagement
               </h2>
             </CardHeader>
             <CardContent className="p-0">
-              {pageAnalytics?.recent_activity.length ? (
+              {pageRows.length === 0 ? (
+                <div className="py-12 text-center text-sm text-muted-foreground">
+                  No aggregate page analytics yet.
+                </div>
+              ) : (
                 <div className="divide-y divide-border">
-                  {pageAnalytics.recent_activity.map((activity) => (
-                    <div key={activity.id} className="px-6 py-3">
-                      <div className="flex items-start justify-between gap-3">
+                  {pageRows.map((page) => (
+                    <div key={page.page_number} className="px-6 py-4">
+                      <div className="mb-2 flex items-center justify-between gap-4">
                         <div>
                           <p className="text-sm font-medium text-foreground">
-                            {activity.visitor_email || activity.visitor_name || 'Anonymous'}
+                            Page {page.page_number}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            Page {activity.page_number} · {formatDuration(activity.duration)}
+                            {page.unique_visits} visitor{page.unique_visits !== 1 ? 's' : ''} ·{' '}
+                            {page.total_views} tracked view{page.total_views !== 1 ? 's' : ''}
                           </p>
                         </div>
-                        <p className="text-right text-xs text-muted-foreground">
-                          {activity.left_at ? formatDateTime(activity.left_at) : activity.entered_at ? formatDateTime(activity.entered_at) : ''}
-                        </p>
+                        <div className="text-right">
+                          <p className="text-sm font-medium text-foreground">
+                            {formatDuration(page.total_duration)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {page.last_viewed_at
+                              ? `Last viewed ${formatDateTime(page.last_viewed_at)}`
+                              : 'No views yet'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-card-hover">
+                        <div
+                          className="h-full rounded-full bg-accent"
+                          style={{
+                            width: `${Math.max(
+                              (page.total_duration / maxPageDuration) * 100,
+                              page.total_duration > 0 ? 6 : 0,
+                            )}%`,
+                          }}
+                        />
                       </div>
                     </div>
                   ))}
-                </div>
-              ) : (
-                <div className="py-12 text-center text-sm text-muted-foreground">
-                  No page-level activity yet.
                 </div>
               )}
             </CardContent>

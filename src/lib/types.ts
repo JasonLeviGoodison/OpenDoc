@@ -85,12 +85,21 @@ export interface DocumentPageAnalyticsEntry {
   unique_visits: number;
 }
 
-export interface DocumentPageActivity {
-  duration: number;
-  entered_at: string | null;
-  id: string;
-  left_at: string | null;
+export interface DocumentPageSessionEntry {
+  last_viewed_at: string | null;
   page_number: number;
+  total_duration: number;
+  total_views: number;
+}
+
+export interface DocumentPageSessionAnalytics {
+  completion_rate: number;
+  created_at: string | null;
+  last_activity_at: string | null;
+  page_analytics: DocumentPageSessionEntry[];
+  page_count_viewed: number;
+  tracked_duration: number;
+  visit_duration: number;
   visit_id: string;
   visitor_email: string | null;
   visitor_name: string | null;
@@ -101,7 +110,7 @@ export interface DocumentPageAnalytics {
   page_analytics: DocumentPageAnalyticsEntry[];
   page_count: number;
   preview_status?: string;
-  recent_activity: DocumentPageActivity[];
+  session_analytics: DocumentPageSessionAnalytics[];
 }
 
 export interface Space {

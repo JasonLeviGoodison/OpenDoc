@@ -3,6 +3,7 @@ import { and, desc, eq, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { documentLinks, documents, pageViews, visits } from '@/db/schema';
+import { buildDocumentPageSessionAnalytics } from '@/lib/document-analytics';
 import { requireUserId, RouteError, toErrorResponse } from '@/lib/server/auth';
 import { getResolvedDocumentPreviewState } from '@/lib/viewer';
 
@@ -50,13 +51,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       .groupBy(pageViews.pageNumber)
       .orderBy(pageViews.pageNumber);
 
-    const recentActivityRows = await db
+    const sessionAnalyticsRows = await db
       .select({
-        duration: pageViews.duration,
-        enteredAt: pageViews.enteredAt,
-        id: pageViews.id,
-        leftAt: pageViews.leftAt,
+        completionRate: visits.completionRate,
+        createdAt: visits.createdAt,
+        lastActivityAt: visits.lastActivityAt,
+        lastViewedAt: sql<Date | string | null>`max(coalesce(${pageViews.leftAt}, ${pageViews.enteredAt}))`,
+        pageCountViewed: visits.pageCountViewed,
         pageNumber: pageViews.pageNumber,
+        totalDuration: sql<number>`coalesce(sum(${pageViews.duration}), 0)`,
+        totalViews: sql<number>`count(*)`,
+        visitDuration: visits.duration,
         visitId: pageViews.visitId,
         visitorEmail: visits.visitorEmail,
         visitorName: visits.visitorName,
@@ -65,8 +70,18 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       .innerJoin(visits, eq(pageViews.visitId, visits.id))
       .innerJoin(documentLinks, eq(visits.linkId, documentLinks.id))
       .where(and(eq(pageViews.documentId, id), eq(documentLinks.userId, userId)))
-      .orderBy(desc(sql`coalesce(${pageViews.leftAt}, ${pageViews.enteredAt})`))
-      .limit(40);
+      .groupBy(
+        pageViews.visitId,
+        pageViews.pageNumber,
+        visits.completionRate,
+        visits.createdAt,
+        visits.duration,
+        visits.lastActivityAt,
+        visits.pageCountViewed,
+        visits.visitorEmail,
+        visits.visitorName,
+      )
+      .orderBy(desc(visits.createdAt), pageViews.pageNumber);
 
     const resolvedPreview = getResolvedDocumentPreviewState({
       fileType: document.fileType,
@@ -86,16 +101,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       })),
       page_count: document.pageCount,
       preview_status: resolvedPreview.previewStatus,
-      recent_activity: recentActivityRows.map((row) => ({
-        duration: Number(row.duration ?? 0),
-        entered_at: toIsoString(row.enteredAt),
-        id: row.id,
-        left_at: toIsoString(row.leftAt),
-        page_number: row.pageNumber,
-        visit_id: row.visitId,
-        visitor_email: row.visitorEmail,
-        visitor_name: row.visitorName,
-      })),
+      session_analytics: buildDocumentPageSessionAnalytics(sessionAnalyticsRows),
     });
   } catch (error) {
     return toErrorResponse(error);
