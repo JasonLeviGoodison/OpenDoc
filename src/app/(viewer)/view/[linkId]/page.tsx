@@ -266,6 +266,11 @@ export default function ViewerPage() {
       );
       setCurrentPage(1);
 
+      document.documentElement.style.setProperty(
+        '--accent',
+        data.brand?.accent_color ?? '#34d399',
+      );
+
       if (data.link_state === 'disabled' || !data.is_active) {
         setGate('disabled');
         return;
@@ -617,6 +622,7 @@ export default function ViewerPage() {
         title={linkData?.space?.name || linkData?.document?.name || 'Document'}
         description="Please enter your email to continue"
         brandName={linkData?.brand?.company_name}
+        logoUrl={linkData?.brand?.logo_url}
       >
         <form onSubmit={handleEmailSubmit} className="w-full max-w-sm space-y-4">
           <Input
@@ -641,6 +647,8 @@ export default function ViewerPage() {
         icon={<Lock size={32} className="text-accent" />}
         title="Password Required"
         description="This document is password protected"
+        brandName={linkData?.brand?.company_name}
+        logoUrl={linkData?.brand?.logo_url}
       >
         <form onSubmit={handlePasswordSubmit} className="w-full max-w-sm space-y-4">
           <Input
@@ -666,6 +674,8 @@ export default function ViewerPage() {
         icon={<Shield size={32} className="text-accent" />}
         title="NDA Required"
         description="Please review and accept the agreement before viewing"
+        brandName={linkData?.brand?.company_name}
+        logoUrl={linkData?.brand?.logo_url}
       >
         <div className="w-full max-w-lg space-y-4">
           <div className="bg-card border border-border rounded-lg p-4 max-h-48 overflow-y-auto text-sm text-muted-foreground leading-relaxed">
@@ -916,17 +926,26 @@ function GateScreen({
   description,
   children,
   brandName,
+  logoUrl,
 }: {
   brandName?: string | null;
   children?: React.ReactNode;
   description: string;
   icon: React.ReactNode;
+  logoUrl?: string | null;
   title: string;
 }) {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">
       <div className="w-full max-w-sm px-6">
         <div className="mb-8 text-center">
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt={brandName ?? 'Logo'}
+              className="h-8 max-w-[160px] object-contain mx-auto mb-6"
+            />
+          ) : null}
           <div className="text-muted mb-4 flex justify-center">{icon}</div>
           <h1 className="text-xl font-bold text-foreground mb-1">{title}</h1>
           <p className="text-sm text-muted">{description}</p>

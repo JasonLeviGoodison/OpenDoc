@@ -1,13 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import {
+  AlertTriangle,
   ArrowLeft,
   Calendar,
   Check,
+  ChevronDown,
   Copy,
   Download,
   ExternalLink,
@@ -56,6 +58,11 @@ export default function DocumentDetailPage() {
   const [allowedDomains, setAllowedDomains] = useState('');
   const [blockedDomains, setBlockedDomains] = useState('');
   const [creatingLink, setCreatingLink] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const router = useRouter();
 
   const loadData = useCallback(async () => {
     if (!userId || !id) {
@@ -155,6 +162,7 @@ export default function DocumentDetailPage() {
     setBlockedEmails('');
     setAllowedDomains('');
     setBlockedDomains('');
+    setAdvancedOpen(false);
   }
 
   async function toggleLink(linkId: string, isActive: boolean) {
@@ -170,6 +178,18 @@ export default function DocumentDetailPage() {
       method: 'DELETE',
     });
     await loadData();
+  }
+
+  async function deleteDocument() {
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      await apiFetchJson<{ success: boolean }>(`/api/documents/${id}`, { method: 'DELETE' });
+      router.push('/documents');
+    } catch {
+      setDeleteError('Failed to delete document. Please try again.');
+      setDeleting(false);
+    }
   }
 
   function copyLink(linkId: string) {
@@ -232,6 +252,9 @@ export default function DocumentDetailPage() {
                 Back
               </Button>
             </Link>
+            <Button variant="ghost" size="sm" onClick={() => setDeleteOpen(true)}>
+              <Trash2 size={16} className="text-danger" />
+            </Button>
             <Button onClick={() => setCreateLinkOpen(true)} size="sm">
               <Plus size={16} />
               Create Link
@@ -389,152 +412,173 @@ export default function DocumentDetailPage() {
           </Card>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-6">
-          <Card className="lg:col-span-2">
+        {/* DocSend-style page analytics */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-bold text-foreground uppercase tracking-wide">
+                  Page Analytics
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Time spent per page across all sessions</p>
+              </div>
+              <Badge>{pageRows.length} page{pageRows.length !== 1 ? 's' : ''}</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            {document.file_type !== 'pdf' && document.preview_status !== 'ready' ? (
+              <div className="border-b border-border bg-card-hover px-6 py-3 text-xs text-muted-foreground">
+                {document.preview_status === 'pending'
+                  ? 'Trackable preview is still generating — page analytics will appear once ready.'
+                  : 'Preview generation failed, so page-level analytics are unavailable for this file.'}
+              </div>
+            ) : null}
+
+            {pageRows.length === 0 ? (
+              <div className="py-12 text-center text-sm text-muted-foreground">
+                No page analytics yet.
+              </div>
+            ) : (
+              <div className="px-6 py-4 space-y-2">
+                {pageRows.map((page) => {
+                  const pct = maxPageDuration > 0
+                    ? (page.total_duration / maxPageDuration) * 100
+                    : 0;
+                  const hasViews = page.total_duration > 0;
+                  return (
+                    <div key={page.page_number} className="flex items-center gap-3 group">
+                      <span className="w-8 shrink-0 text-right text-xs font-mono font-medium text-muted-foreground">
+                        {String(page.page_number).padStart(2, '0')}
+                      </span>
+                      <div className="flex-1 h-6 bg-card-hover rounded overflow-hidden">
+                        <div
+                          className="h-full rounded transition-all duration-300"
+                          style={{
+                            width: hasViews ? `${Math.max(pct, 3)}%` : '0%',
+                            backgroundColor: hasViews ? 'var(--color-accent)' : undefined,
+                            opacity: hasViews ? (40 + pct * 0.6) / 100 : undefined,
+                          }}
+                        />
+                      </div>
+                      <div className="w-28 shrink-0 flex items-center justify-end gap-2">
+                        <span className="text-xs font-medium text-foreground tabular-nums">
+                          {hasViews ? formatDuration(page.total_duration) : '—'}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground tabular-nums">
+                          {page.unique_visits}v
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* DocSend-style session heatmap */}
+        {sessionRows.length > 0 && (
+          <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-bold text-foreground uppercase tracking-wide">
-                  Session Page Breakdown
-                </h2>
+                <div>
+                  <h2 className="text-sm font-bold text-foreground uppercase tracking-wide">
+                    Session Breakdown
+                  </h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">Per-session page heatmap — darker = more time</p>
+                </div>
                 <Badge>{sessionRows.length} session{sessionRows.length !== 1 ? 's' : ''}</Badge>
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              {document.file_type !== 'pdf' && document.preview_status !== 'ready' ? (
-                <div className="border-b border-border bg-card-hover px-6 py-3 text-xs text-muted-foreground">
-                  {document.preview_status === 'pending'
-                    ? 'Trackable preview generation is still running. Slide or page analytics will populate once the PDF preview is ready.'
-                    : 'Trackable preview generation failed for this file, so precise slide or page analytics are not currently available.'}
-                </div>
-              ) : null}
-
-              {sessionRows.length === 0 ? (
-                <div className="py-12 text-center text-sm text-muted-foreground">
-                  No session-level page analytics yet.
-                </div>
-              ) : (
-                <div className="divide-y divide-border">
-                  {sessionRows.map((session) => (
+              <div className="divide-y divide-border">
+                {sessionRows.map((session) => {
+                  const sessionMax = Math.max(
+                    ...session.page_analytics.map((p) => p.total_duration),
+                    1,
+                  );
+                  const pageMap = new Map(
+                    session.page_analytics.map((p) => [p.page_number, p]),
+                  );
+                  return (
                     <div key={session.visit_id} className="px-6 py-4">
-                      <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center justify-between gap-4 mb-3">
                         <div>
                           <p className="text-sm font-medium text-foreground">
                             {session.visitor_email || session.visitor_name || 'Anonymous'}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {session.created_at
-                              ? `Visited ${formatDateTime(session.created_at)}`
-                              : 'Visit time unavailable'}
-                            {session.last_activity_at
-                              ? ` · Last activity ${formatDateTime(session.last_activity_at)}`
-                              : ''}
+                            {session.created_at ? formatDateTime(session.created_at) : 'Unknown time'}
                           </p>
                         </div>
-                        <div className="text-right">
-                          <p className="text-sm font-medium text-foreground">
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-semibold text-foreground tabular-nums">
                             {formatDuration(session.tracked_duration)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {session.page_count_viewed} page
-                            {session.page_count_viewed !== 1 ? 's' : ''} ·{' '}
-                            {Math.round(session.completion_rate)}% completion
+                            {Math.round(session.completion_rate)}% read
                           </p>
                         </div>
                       </div>
 
-                      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                        {session.page_analytics.map((page) => (
-                          <div
-                            key={`${session.visit_id}:${page.page_number}`}
-                            className="rounded-lg border border-border bg-card-hover/60 px-3 py-3"
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                                  Page {page.page_number}
-                                </p>
-                                <p className="mt-1 text-sm font-medium text-foreground">
-                                  {formatDuration(page.total_duration)}
-                                </p>
-                              </div>
-                              <p className="text-[11px] text-muted-foreground">
-                                {page.total_views} tracked view{page.total_views !== 1 ? 's' : ''}
-                              </p>
-                            </div>
-                            <p className="mt-2 text-[11px] text-muted-foreground">
-                              {page.last_viewed_at
-                                ? `Last viewed ${formatDateTime(page.last_viewed_at)}`
-                                : 'No timestamp recorded'}
-                            </p>
-                          </div>
-                        ))}
+                      {/* page strip */}
+                      <div className="flex gap-0.5 flex-wrap">
+                        {pageRows.map((page) => {
+                          const entry = pageMap.get(page.page_number);
+                          const intensity = entry
+                            ? Math.round(30 + (entry.total_duration / sessionMax) * 70)
+                            : 0;
+                          return (
+                            <div
+                              key={page.page_number}
+                              title={`Page ${page.page_number}: ${entry ? formatDuration(entry.total_duration) : 'not viewed'}`}
+                              className="h-5 rounded-sm flex-1 min-w-[10px] max-w-[28px] transition-opacity"
+                              style={{
+                                backgroundColor: intensity > 0 ? 'var(--color-accent)' : 'var(--color-card-hover)',
+                                opacity: intensity > 0 ? intensity / 100 : undefined,
+                              }}
+                            />
+                          );
+                        })}
+                      </div>
+                      <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+                        <span>p1</span>
+                        <span>p{pageRows.length}</span>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                  );
+                })}
+              </div>
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader>
-              <h2 className="text-sm font-bold text-foreground uppercase tracking-wide">
-                Aggregate Page Engagement
-              </h2>
-            </CardHeader>
-            <CardContent className="p-0">
-              {pageRows.length === 0 ? (
-                <div className="py-12 text-center text-sm text-muted-foreground">
-                  No aggregate page analytics yet.
-                </div>
-              ) : (
-                <div className="divide-y divide-border">
-                  {pageRows.map((page) => (
-                    <div key={page.page_number} className="px-6 py-4">
-                      <div className="mb-2 flex items-center justify-between gap-4">
-                        <div>
-                          <p className="text-sm font-medium text-foreground">
-                            Page {page.page_number}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {page.unique_visits} visitor{page.unique_visits !== 1 ? 's' : ''} ·{' '}
-                            {page.total_views} tracked view{page.total_views !== 1 ? 's' : ''}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-medium text-foreground">
-                            {formatDuration(page.total_duration)}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {page.last_viewed_at
-                              ? `Last viewed ${formatDateTime(page.last_viewed_at)}`
-                              : 'No views yet'}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-card-hover">
-                        <div
-                          className="h-full rounded-full bg-accent"
-                          style={{
-                            width: `${Math.max(
-                              (page.total_duration / maxPageDuration) * 100,
-                              page.total_duration > 0 ? 6 : 0,
-                            )}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+        )}
       </div>
 
       <Modal
+        open={deleteOpen}
+        onOpenChange={(open) => { setDeleteOpen(open); if (!open) setDeleteError(''); }}
+        title="Delete document?"
+        description={`"${document.name}" will be soft-deleted and removed from all views.`}
+      >
+        <div className="flex items-start gap-3 rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger mb-5">
+          <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+          <span>Any active share links pointing to this document will stop working.</span>
+        </div>
+        {deleteError && <p className="text-sm text-danger mb-4">{deleteError}</p>}
+        <div className="flex justify-end gap-3">
+          <Button variant="secondary" onClick={() => { setDeleteOpen(false); setDeleteError(''); }}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={deleteDocument} loading={deleting}>
+            <Trash2 size={15} />
+            Delete
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
         open={createLinkOpen}
-        onOpenChange={setCreateLinkOpen}
+        onOpenChange={(open) => { setCreateLinkOpen(open); if (!open) resetLinkForm(); }}
         title="Create Shareable Link"
         description="Configure how people access this document"
         dismissible={false}
@@ -549,7 +593,6 @@ export default function DocumentDetailPage() {
           />
 
           <div className="space-y-4 border-t border-border pt-4">
-            <h3 className="text-sm font-semibold text-foreground">Access Controls</h3>
             <Toggle
               checked={requireEmail}
               onCheckedChange={setRequireEmail}
@@ -578,70 +621,91 @@ export default function DocumentDetailPage() {
               description="Viewers must sign an NDA before accessing"
             />
             {requireNda && (
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">NDA Text</label>
-                <textarea
-                  value={ndaText}
-                  onChange={(event) => setNdaText(event.target.value)}
-                  className="mt-1.5 w-full bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted resize-none h-24 focus:outline-none focus:ring-2 focus:ring-accent"
-                  placeholder="Enter NDA agreement text..."
+              <div className="space-y-3">
+                <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2.5 text-xs text-warning">
+                  <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+                  <span>
+                    This captures a checkbox acknowledgement only — it is <strong>not</strong> a legally binding
+                    e-signature. Do not use for enforceable contracts without consulting legal counsel.
+                  </span>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">NDA Text</label>
+                  <textarea
+                    value={ndaText}
+                    onChange={(event) => setNdaText(event.target.value)}
+                    className="mt-1.5 w-full bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted resize-none h-24 focus:border-transparent"
+                    placeholder="Enter NDA agreement text..."
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Advanced options accordion */}
+          <div className="border-t border-border pt-4">
+            <button
+              type="button"
+              onClick={() => setAdvancedOpen((prev) => !prev)}
+              className="flex w-full items-center justify-between text-sm font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            >
+              <span>Advanced options</span>
+              <ChevronDown
+                size={15}
+                className={`transition-transform duration-200 ${advancedOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            {advancedOpen && (
+              <div className="mt-4 space-y-4">
+                <Toggle
+                  checked={enableWatermark}
+                  onCheckedChange={setEnableWatermark}
+                  label="Dynamic Watermark"
+                  description="Overlay viewer email, IP address, and timestamp on each page"
+                />
+                <Toggle
+                  checked={allowDownload}
+                  onCheckedChange={setAllowDownload}
+                  label="Allow Download"
+                  description="Let viewers download the document"
+                />
+                <Input
+                  label="Expiration Date"
+                  type="datetime-local"
+                  value={expiresAt}
+                  onChange={(event) => setExpiresAt(event.target.value)}
+                />
+                <Input
+                  label="Allowed Emails (comma-separated)"
+                  value={allowedEmails}
+                  onChange={(event) => setAllowedEmails(event.target.value)}
+                  placeholder="user@company.com, team@org.com"
+                />
+                <Input
+                  label="Blocked Emails (comma-separated)"
+                  value={blockedEmails}
+                  onChange={(event) => setBlockedEmails(event.target.value)}
+                  placeholder="block@competitor.com"
+                />
+                <Input
+                  label="Allowed Domains (comma-separated)"
+                  value={allowedDomains}
+                  onChange={(event) => setAllowedDomains(event.target.value)}
+                  placeholder="vcfirm.com, diligence.io"
+                />
+                <Input
+                  label="Blocked Domains (comma-separated)"
+                  value={blockedDomains}
+                  onChange={(event) => setBlockedDomains(event.target.value)}
+                  placeholder="competitor.com"
                 />
               </div>
             )}
           </div>
 
-          <div className="space-y-4 border-t border-border pt-4">
-            <h3 className="text-sm font-semibold text-foreground">Security</h3>
-            <Toggle
-              checked={enableWatermark}
-              onCheckedChange={setEnableWatermark}
-              label="Dynamic Watermark"
-              description="Overlay viewer email, IP address, and timestamp on each page"
-            />
-            <Toggle
-              checked={allowDownload}
-              onCheckedChange={setAllowDownload}
-              label="Allow Download"
-              description="Let viewers download the document through the gated viewer route"
-            />
-          </div>
-
-          <div className="space-y-4 border-t border-border pt-4">
-            <h3 className="text-sm font-semibold text-foreground">Restrictions</h3>
-            <Input
-              label="Expiration Date"
-              type="datetime-local"
-              value={expiresAt}
-              onChange={(event) => setExpiresAt(event.target.value)}
-            />
-            <Input
-              label="Allowed Emails (comma-separated)"
-              value={allowedEmails}
-              onChange={(event) => setAllowedEmails(event.target.value)}
-              placeholder="user@company.com, team@org.com"
-            />
-            <Input
-              label="Blocked Emails (comma-separated)"
-              value={blockedEmails}
-              onChange={(event) => setBlockedEmails(event.target.value)}
-              placeholder="block@competitor.com"
-            />
-            <Input
-              label="Allowed Domains (comma-separated)"
-              value={allowedDomains}
-              onChange={(event) => setAllowedDomains(event.target.value)}
-              placeholder="vcfirm.com, diligence.io"
-            />
-            <Input
-              label="Blocked Domains (comma-separated)"
-              value={blockedDomains}
-              onChange={(event) => setBlockedDomains(event.target.value)}
-              placeholder="competitor.com"
-            />
-          </div>
-
           <div className="flex justify-end gap-3 pt-4 border-t border-border">
-            <Button variant="secondary" onClick={() => setCreateLinkOpen(false)}>
+            <Button variant="secondary" onClick={() => { setCreateLinkOpen(false); resetLinkForm(); }}>
               Cancel
             </Button>
             <Button onClick={createLink} loading={creatingLink}>

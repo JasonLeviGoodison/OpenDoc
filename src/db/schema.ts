@@ -91,6 +91,7 @@ export const documents = pgTable('documents', {
   previewUpdatedAt: timestamp('preview_updated_at', { withTimezone: true }),
   thumbnailUrl: text('thumbnail_url'),
   folderId: uuid('folder_id').references(() => folders.id, { onDelete: 'set null' }),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 }, (t) => [

@@ -2,7 +2,7 @@
 
 import { useEffect, useEffectEvent, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { Clock, Mail, PenTool } from 'lucide-react';
+import { AlertTriangle, Clock, Mail, PenTool } from 'lucide-react';
 
 import { Header } from '@/components/dashboard/header';
 import { Badge } from '@/components/ui/badge';
@@ -46,6 +46,17 @@ export default function SignaturesPage() {
   return (
     <div>
       <Header title="Signatures" description="NDA and agreement signatures from viewers" />
+
+      <div className="mx-8 mt-6 flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/5 px-4 py-3 text-sm text-warning">
+        <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+        <p>
+          <span className="font-semibold">For acknowledgement purposes only.</span> These records capture that a viewer
+          checked a checkbox and submitted a form. They are <span className="font-semibold">not</span> legally binding
+          electronic signatures and do not constitute a valid e-signature under the ESIGN Act, eIDAS, or any equivalent
+          law. Do not rely on these records as enforceable agreements. Consult legal counsel before using this feature
+          for binding contracts.
+        </p>
+      </div>
 
       <div className="p-8">
         {loading ? (

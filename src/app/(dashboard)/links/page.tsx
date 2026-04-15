@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import {
+  AlertTriangle,
   Calendar,
   Check,
   Copy,
@@ -25,6 +26,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
+import { Modal } from '@/components/ui/modal';
 import { apiFetchJson } from '@/lib/api-client';
 import type { DocumentLink } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
@@ -41,6 +43,8 @@ export default function LinksPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ShareLink | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const loadLinks = useCallback(async () => {
     if (!userId) {
@@ -81,11 +85,18 @@ export default function LinksPage() {
     await loadLinks();
   }
 
-  async function deleteLink(id: string) {
-    await apiFetchJson<{ success: boolean }>(`/api/share-links/${id}`, {
-      method: 'DELETE',
-    });
-    await loadLinks();
+  async function confirmDeleteLink() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await apiFetchJson<{ success: boolean }>(`/api/share-links/${deleteTarget.id}`, {
+        method: 'DELETE',
+      });
+      setLinks((current) => current.filter((l) => l.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } finally {
+      setDeleting(false);
+    }
   }
 
   const filteredLinks = links.filter((link) =>
@@ -208,7 +219,7 @@ export default function LinksPage() {
                         <ToggleLeft size={14} className="text-muted" />
                       )}
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => deleteLink(link.id)}>
+                    <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(link)}>
                       <Trash2 size={14} className="text-danger" />
                     </Button>
                   </div>
@@ -218,6 +229,27 @@ export default function LinksPage() {
           </div>
         )}
       </div>
+
+      <Modal
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        title="Delete link?"
+        description={`"${deleteTarget?.name}" will be permanently deleted. Viewers with this link will lose access.`}
+      >
+        <div className="flex items-start gap-3 rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger mb-5">
+          <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+          <span>Anyone currently viewing this link will be disconnected immediately.</span>
+        </div>
+        <div className="flex justify-end gap-3">
+          <Button variant="secondary" onClick={() => setDeleteTarget(null)}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={confirmDeleteLink} loading={deleting}>
+            <Trash2 size={15} />
+            Delete
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }
