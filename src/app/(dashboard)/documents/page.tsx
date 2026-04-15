@@ -275,7 +275,7 @@ export default function DocumentsPage() {
         open={!!deleteTarget}
         onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setDeleteError(''); } }}
         title="Delete document?"
-        description={`"${deleteTarget?.name}" will be soft-deleted and removed from all views. This cannot be undone from the UI.`}
+        description={`"${deleteTarget?.name}" will be permanently deleted. This cannot be undone.`}
       >
         <div className="flex items-start gap-3 rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger mb-5">
           <AlertTriangle size={15} className="mt-0.5 shrink-0" />

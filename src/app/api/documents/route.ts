@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { documents } from '@/db/schema';
-import { and, eq, desc, isNull } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import { serializeDocument } from '@/lib/serializers';
 import { ensureCurrentUserRecord, requireUserId, RouteError, toErrorResponse } from '@/lib/server/auth';
 import { ensureDocumentPreview } from '@/lib/server/document-preview';
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
     const baseQuery = db
       .select()
       .from(documents)
-      .where(and(eq(documents.userId, userId), isNull(documents.deletedAt)))
+      .where(eq(documents.userId, userId))
       .orderBy(desc(documents.createdAt));
     const rows = limit ? await baseQuery.limit(limit) : await baseQuery;
     return NextResponse.json(rows.map(serializeDocument));

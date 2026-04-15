@@ -558,7 +558,7 @@ export default function DocumentDetailPage() {
         open={deleteOpen}
         onOpenChange={(open) => { setDeleteOpen(open); if (!open) setDeleteError(''); }}
         title="Delete document?"
-        description={`"${document.name}" will be soft-deleted and removed from all views.`}
+        description={`"${document.name}" will be permanently deleted. This cannot be undone.`}
       >
         <div className="flex items-start gap-3 rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger mb-5">
           <AlertTriangle size={15} className="mt-0.5 shrink-0" />
