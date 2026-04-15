@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { documentLinks, documents, notifications, signatures, spaceDocuments, visits } from '@/db/schema';
-import { and, desc, eq, gte, sql } from 'drizzle-orm';
-import { getLinkAvailability, isEmailAuthorized } from '@/lib/link-access';
+import { documentLinks, documents, notifications, signatures, spaceDocuments, users, visits } from '@/db/schema';
+import { and, desc, eq, gte, isNull, ne, sql } from 'drizzle-orm';
+import { getLinkAvailability, isEmailAuthorized, normalizeEmail } from '@/lib/link-access';
 import { serializeVisit } from '@/lib/serializers';
+import { sendDocumentViewedEmail } from '@/lib/server/email';
 import { requireUserId, RouteError, toErrorResponse } from '@/lib/server/auth';
 import { createSignedToken, verifySignedToken } from '@/lib/security';
 import { parseVisitCreateBody } from '@/lib/validators';
@@ -24,6 +25,82 @@ function parseOS(ua: string): string {
   if (/android/i.test(ua)) return 'Android';
   if (/iphone|ipad/i.test(ua)) return 'iOS';
   return 'Other';
+}
+
+const DOCUMENT_VIEW_EMAIL_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+interface DocumentViewedNotificationJob {
+  analyticsUrl: string;
+  documentId: string | null;
+  ipAddress: string | null;
+  linkName: string;
+  viewedAt: Date;
+  viewerEmail: string | null;
+  visitId: string;
+}
+
+async function sendDocumentViewedNotification(job: DocumentViewedNotificationJob) {
+  if (!job.documentId) {
+    return;
+  }
+
+  const [documentOwner] = await db
+    .select({
+      documentName: documents.name,
+      ownerEmail: users.email,
+      ownerName: users.fullName,
+    })
+    .from(documents)
+    .innerJoin(users, eq(documents.userId, users.id))
+    .where(eq(documents.id, job.documentId))
+    .limit(1);
+
+  if (!documentOwner?.ownerEmail) {
+    return;
+  }
+
+  const normalizedOwnerEmail = normalizeEmail(documentOwner.ownerEmail);
+  const normalizedViewerEmail = job.viewerEmail ? normalizeEmail(job.viewerEmail) : null;
+
+  if (normalizedViewerEmail && normalizedViewerEmail === normalizedOwnerEmail) {
+    return;
+  }
+
+  const anonymousVisitorFilter =
+    job.ipAddress && job.ipAddress !== 'unknown'
+      ? and(isNull(visits.visitorEmail), eq(visits.ipAddress, job.ipAddress))
+      : isNull(visits.visitorEmail);
+  const visitorFilter = normalizedViewerEmail
+    ? sql`lower(${visits.visitorEmail}) = ${normalizedViewerEmail}`
+    : anonymousVisitorFilter;
+  const windowStart = new Date(job.viewedAt.getTime() - DOCUMENT_VIEW_EMAIL_WINDOW_MS);
+
+  const [recentVisit] = await db
+    .select({ id: visits.id })
+    .from(visits)
+    .where(
+      and(
+        eq(visits.documentId, job.documentId),
+        gte(visits.createdAt, windowStart),
+        ne(visits.id, job.visitId),
+        visitorFilter,
+      ),
+    )
+    .limit(1);
+
+  if (recentVisit) {
+    return;
+  }
+
+  await sendDocumentViewedEmail({
+    analyticsUrl: job.analyticsUrl,
+    documentName: documentOwner.documentName,
+    linkName: job.linkName,
+    ownerEmail: documentOwner.ownerEmail,
+    ownerName: documentOwner.ownerName,
+    viewedAt: job.viewedAt,
+    viewerEmail: job.viewerEmail,
+  });
 }
 
 export async function GET(req: NextRequest) {
@@ -191,6 +268,22 @@ export async function POST(req: NextRequest) {
         userId: notificationUserId,
       });
     }
+
+    after(async () => {
+      try {
+        await sendDocumentViewedNotification({
+          analyticsUrl: documentId ? `${req.nextUrl.origin}/documents/${documentId}` : req.nextUrl.origin,
+          documentId,
+          ipAddress: ip || 'unknown',
+          linkName: link.name,
+          viewedAt: row.createdAt ?? new Date(),
+          viewerEmail: body.visitorEmail,
+          visitId: row.id,
+        });
+      } catch (error) {
+        console.error('Failed to send document view email notification:', error);
+      }
+    });
 
     return NextResponse.json(
       {
