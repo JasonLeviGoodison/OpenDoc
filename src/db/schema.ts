@@ -33,6 +33,8 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   spaces: many(spaces),
   folders: many(folders),
   brandSettings: one(brandSettings),
+  stripeCustomer: one(stripeCustomers),
+  subscriptions: many(subscriptions),
 }));
 
 // ─── Brand Settings ─────────────────────────────────────────────────────────
@@ -264,6 +266,48 @@ export const notifications = pgTable('notifications', {
 
 export const notificationsRelations = relations(notifications, ({ one }) => ({
   user: one(users, { fields: [notifications.userId], references: [users.id] }),
+}));
+
+// ─── Stripe Customers ───────────────────────────────────────────────────────
+
+export const stripeCustomers = pgTable('stripe_customers', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  stripeCustomerId: text('stripe_customer_id').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+}, (t) => [
+  uniqueIndex('stripe_customers_user_id_idx').on(t.userId),
+  uniqueIndex('stripe_customers_customer_id_idx').on(t.stripeCustomerId),
+]);
+
+export const stripeCustomersRelations = relations(stripeCustomers, ({ one }) => ({
+  user: one(users, { fields: [stripeCustomers.userId], references: [users.id] }),
+}));
+
+// ─── Subscriptions ──────────────────────────────────────────────────────────
+
+export const subscriptions = pgTable('subscriptions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  stripeSubscriptionId: text('stripe_subscription_id'),
+  stripeCustomerId: text('stripe_customer_id').notNull(),
+  status: text('status').notNull(),
+  priceId: text('price_id').notNull(),
+  currentPeriodStart: timestamp('current_period_start', { withTimezone: true }),
+  currentPeriodEnd: timestamp('current_period_end', { withTimezone: true }),
+  cancelAtPeriodEnd: boolean('cancel_at_period_end').notNull().default(false),
+  canceledAt: timestamp('canceled_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+}, (t) => [
+  uniqueIndex('subscriptions_user_id_idx').on(t.userId),
+  uniqueIndex('subscriptions_stripe_subscription_id_idx').on(t.stripeSubscriptionId),
+  index('subscriptions_customer_id_idx').on(t.stripeCustomerId),
+  index('subscriptions_status_idx').on(t.status),
+]);
+
+export const subscriptionsRelations = relations(subscriptions, ({ one }) => ({
+  user: one(users, { fields: [subscriptions.userId], references: [users.id] }),
 }));
 
 // ─── NDA Signatures ─────────────────────────────────────────────────────────

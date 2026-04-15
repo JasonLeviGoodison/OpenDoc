@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  parseCheckoutBody,
   ValidationError,
   parseDocumentCreateBody,
   parsePageViewBody,
@@ -37,6 +38,24 @@ test('parseUploadRequestBody requires a filename and preserves metadata', () => 
     fileName: 'deck.pdf',
     fileSize: 12345,
   });
+});
+
+test('parseCheckoutBody requires a priceId string', () => {
+  const parsed = parseCheckoutBody({
+    priceId: 'price_123',
+  });
+
+  assert.deepEqual(parsed, {
+    priceId: 'price_123',
+  });
+
+  assert.throws(
+    () =>
+      parseCheckoutBody({
+        priceId: '',
+      }),
+    ValidationError,
+  );
 });
 
 test('parseShareLinkBody normalizes access lists and accepts document links', () => {

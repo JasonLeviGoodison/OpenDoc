@@ -301,3 +301,11 @@ export function parsePageViewBody(body: unknown) {
     visitId: requiredString(record.visit_id, 'visit_id', { maxLength: 64 }),
   };
 }
+
+export function parseCheckoutBody(body: unknown) {
+  const record = asObject(body);
+
+  return {
+    priceId: requiredString(record.priceId, 'priceId', { maxLength: 255 }),
+  };
+}
