@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Document, Page, pdfjs } from 'react-pdf';
 
+import { cn } from '@/lib/utils';
+
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 if (typeof window !== 'undefined') {
@@ -39,36 +41,51 @@ export function PdfDocumentViewer({
   onPageCountChange,
   zoom = 1,
 }: PdfDocumentViewerProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [numPages, setNumPages] = useState(0);
+  const pageViewportRef = useRef<HTMLDivElement | null>(null);
+  const [loadedFileUrl, setLoadedFileUrl] = useState<string | null>(null);
+  const [documentLandscape, setDocumentLandscape] = useState<boolean | null>(null);
+  const [documentNumPages, setDocumentNumPages] = useState(0);
+  const [documentLoadError, setDocumentLoadError] = useState<string | null>(null);
   const [pageWidth, setPageWidth] = useState(820);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const numPages = loadedFileUrl === fileUrl ? documentNumPages : 0;
+  const loadError = loadedFileUrl === fileUrl ? documentLoadError : null;
+  const isLandscapeDocument = loadedFileUrl === fileUrl ? documentLandscape : null;
 
   useEffect(() => {
-    const container = containerRef.current;
+    const pageViewport = pageViewportRef.current;
 
-    if (!container) {
+    if (!pageViewport) {
       return;
     }
 
     const updatePageWidth = () => {
-      setPageWidth(Math.max(280, Math.min(920, Math.floor(container.clientWidth - 144))));
+      const availableWidth = Math.floor(pageViewport.clientWidth);
+
+      if (availableWidth <= 0) {
+        return;
+      }
+
+      const nextWidth = isLandscapeDocument
+        ? availableWidth
+        : Math.min(920, availableWidth);
+
+      setPageWidth(Math.max(Math.min(availableWidth, 280), nextWidth));
     };
 
     updatePageWidth();
 
     const observer = new ResizeObserver(updatePageWidth);
-    observer.observe(container);
+    observer.observe(pageViewport);
 
     return () => observer.disconnect();
-  }, []);
+  }, [fileUrl, isLandscapeDocument, numPages]);
 
   const clampedCurrentPage = numPages > 0 ? Math.min(Math.max(currentPage, 1), numPages) : 1;
   const canGoToPreviousPage = clampedCurrentPage > 1;
   const canGoToNextPage = numPages > 0 && clampedCurrentPage < numPages;
 
   return (
-    <div ref={containerRef} className="h-full overflow-auto px-6 py-8">
+    <div className="h-full overflow-auto px-4 py-6 sm:px-6 sm:py-8">
       <Document
         file={fileUrl}
         loading={
@@ -81,14 +98,18 @@ export function PdfDocumentViewer({
         }
         onLoadError={(error) => {
           console.error('[PdfViewer] Document load error:', error);
-          setLoadError(error.message);
-          setNumPages(0);
+          setLoadedFileUrl(fileUrl);
+          setDocumentLandscape(null);
+          setDocumentLoadError(error.message);
+          setDocumentNumPages(0);
         }}
         onLoadSuccess={(pdf: { numPages: number }) => {
           console.log('[PdfViewer] Document loaded:', pdf.numPages, 'pages');
           console.log('[PdfViewer] PDF fingerprint:', (pdf as Record<string, unknown>).fingerprints);
-          setLoadError(null);
-          setNumPages(pdf.numPages);
+          setLoadedFileUrl(fileUrl);
+          setDocumentLandscape(null);
+          setDocumentLoadError(null);
+          setDocumentNumPages(pdf.numPages);
           onPageCountChange?.(pdf.numPages);
 
           if (currentPage < 1) {
@@ -109,35 +130,62 @@ export function PdfDocumentViewer({
             </div>
           </div>
         ) : (
-          <div className="relative mx-auto flex min-h-full w-full max-w-[1080px] items-center justify-center">
+          <div
+            className={cn(
+              'mx-auto grid min-h-full w-full items-center',
+              numPages > 1 ? 'grid-cols-[auto_minmax(0,1fr)_auto] gap-2 sm:gap-4' : 'grid-cols-[minmax(0,1fr)]',
+              isLandscapeDocument ? 'max-w-none' : 'max-w-[1080px]',
+            )}
+          >
             {numPages > 1 ? (
               <button
                 type="button"
                 aria-label="Previous page"
                 disabled={!canGoToPreviousPage}
                 onClick={() => onPageChange(clampedCurrentPage - 1)}
-                className="absolute left-0 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card/90 text-foreground shadow-[0_16px_48px_rgba(0,0,0,0.28)] backdrop-blur-sm transition-colors hover:bg-card disabled:cursor-not-allowed disabled:opacity-30"
+                className="z-10 flex h-10 w-10 shrink-0 items-center justify-center self-center rounded-full border border-border bg-card/90 text-foreground shadow-[0_16px_48px_rgba(0,0,0,0.28)] backdrop-blur-sm transition-colors hover:bg-card disabled:cursor-not-allowed disabled:opacity-30 sm:h-11 sm:w-11"
               >
                 <ChevronLeft size={20} />
               </button>
             ) : null}
 
-            <div className="flex w-full items-center justify-center px-14">
-              <div className="overflow-hidden rounded-2xl border border-border bg-white shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
-                <Page
-                  key={`${fileUrl}:${clampedCurrentPage}:${Math.round(pageWidth * zoom)}`}
-                  loading={
-                    <div className="flex h-[480px] items-center justify-center bg-white text-sm text-slate-500">
-                      Rendering page {clampedCurrentPage}...
-                    </div>
-                  }
-                  onRenderError={(error) => console.error('[PdfViewer] Page render error:', clampedCurrentPage, error)}
-                  onRenderSuccess={() => console.log('[PdfViewer] Page rendered successfully:', clampedCurrentPage, 'width:', Math.round(pageWidth * zoom))}
-                  pageNumber={clampedCurrentPage}
-                  renderAnnotationLayer={false}
-                  renderTextLayer={false}
-                  width={Math.max(280, Math.round(pageWidth * zoom))}
-                />
+            <div
+              className={cn(
+                'flex min-w-0 items-center justify-center',
+                numPages > 1 ? (isLandscapeDocument ? 'px-0' : 'px-1 sm:px-2') : '',
+              )}
+            >
+              <div ref={pageViewportRef} className="flex w-full min-w-0 items-center justify-center">
+                <div className="overflow-hidden rounded-2xl border border-border bg-white shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+                  <Page
+                    key={`${fileUrl}:${clampedCurrentPage}:${Math.round(pageWidth * zoom)}`}
+                    loading={
+                      <div className="flex h-[480px] items-center justify-center bg-white text-sm text-slate-500">
+                        Rendering page {clampedCurrentPage}...
+                      </div>
+                    }
+                    onLoadSuccess={(page: { originalHeight: number; originalWidth: number }) => {
+                      if (clampedCurrentPage === 1) {
+                        setDocumentLandscape(page.originalWidth > page.originalHeight);
+                      }
+                    }}
+                    onRenderError={(error) =>
+                      console.error('[PdfViewer] Page render error:', clampedCurrentPage, error)
+                    }
+                    onRenderSuccess={() =>
+                      console.log(
+                        '[PdfViewer] Page rendered successfully:',
+                        clampedCurrentPage,
+                        'width:',
+                        Math.round(pageWidth * zoom),
+                      )
+                    }
+                    pageNumber={clampedCurrentPage}
+                    renderAnnotationLayer={false}
+                    renderTextLayer={false}
+                    width={Math.round(pageWidth * zoom)}
+                  />
+                </div>
               </div>
             </div>
 
@@ -147,7 +195,7 @@ export function PdfDocumentViewer({
                 aria-label="Next page"
                 disabled={!canGoToNextPage}
                 onClick={() => onPageChange(clampedCurrentPage + 1)}
-                className="absolute right-0 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card/90 text-foreground shadow-[0_16px_48px_rgba(0,0,0,0.28)] backdrop-blur-sm transition-colors hover:bg-card disabled:cursor-not-allowed disabled:opacity-30"
+                className="z-10 flex h-10 w-10 shrink-0 items-center justify-center self-center rounded-full border border-border bg-card/90 text-foreground shadow-[0_16px_48px_rgba(0,0,0,0.28)] backdrop-blur-sm transition-colors hover:bg-card disabled:cursor-not-allowed disabled:opacity-30 sm:h-11 sm:w-11"
               >
                 <ChevronRight size={20} />
               </button>
