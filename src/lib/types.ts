@@ -67,6 +67,22 @@ export interface Visit {
   last_activity_at: string;
 }
 
+export interface Notification {
+  created_at: string | null;
+  id: string;
+  message: string;
+  metadata: Record<string, string | number | boolean | null> | null;
+  read: boolean;
+  title: string;
+  type: string;
+  user_id: string;
+}
+
+export interface NotificationsResponse {
+  notifications: Notification[];
+  unread_count: number;
+}
+
 export interface PageView {
   id: string;
   visit_id: string;

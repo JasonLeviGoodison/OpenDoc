@@ -15,6 +15,13 @@
       "when": 1776060544390,
       "tag": "0001_mysterious_pandemic",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776222567277,
+      "tag": "0002_slow_thor_girl",
+      "breakpoints": true
     }
   ]
 }

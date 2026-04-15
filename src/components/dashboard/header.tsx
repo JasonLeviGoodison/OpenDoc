@@ -1,7 +1,8 @@
 'use client';
 
 import { UserButton } from '@clerk/nextjs';
-import { Bell, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
+import { NotificationBell } from '@/components/dashboard/notification-bell';
 import { Input } from '@/components/ui/input';
 
 interface HeaderProps {
@@ -30,10 +31,7 @@ export function Header({ title, description, actions }: HeaderProps) {
           />
         </div>
 
-        <button className="relative p-2 rounded-lg text-muted hover:text-foreground hover:bg-card-hover transition-colors cursor-pointer">
-          <Bell size={18} />
-          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-accent rounded-full" />
-        </button>
+        <NotificationBell />
 
         <UserButton
           appearance={{

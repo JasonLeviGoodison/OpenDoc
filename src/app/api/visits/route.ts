@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { documentLinks, signatures, spaceDocuments, visits } from '@/db/schema';
+import { documentLinks, documents, notifications, signatures, spaceDocuments, visits } from '@/db/schema';
 import { and, desc, eq, gte, sql } from 'drizzle-orm';
 import { getLinkAvailability, isEmailAuthorized } from '@/lib/link-access';
 import { serializeVisit } from '@/lib/serializers';
@@ -117,6 +117,17 @@ export async function POST(req: NextRequest) {
       throw new RouteError('Document is not associated with this link.', 400);
     }
 
+    const [document] = documentId
+      ? await db
+          .select({
+            id: documents.id,
+            name: documents.name,
+            userId: documents.userId,
+          })
+          .from(documents)
+          .where(eq(documents.id, documentId))
+      : [];
+
     const forwarded = req.headers.get('x-forwarded-for');
     const ip = forwarded ? forwarded.split(',')[0]?.trim() : req.headers.get('x-real-ip') || 'unknown';
     const userAgent = req.headers.get('user-agent') || '';
@@ -158,6 +169,28 @@ export async function POST(req: NextRequest) {
         visitCount: sql`${documentLinks.visitCount} + 1`,
       })
       .where(eq(documentLinks.id, link.id));
+
+    if (documentId) {
+      const viewerLabel = body.visitorEmail?.trim() || body.visitorName?.trim() || 'Someone';
+      const documentName = document?.name ?? 'your document';
+      const notificationUserId = document?.userId ?? link.userId;
+
+      await db.insert(notifications).values({
+        message: `${viewerLabel} viewed "${documentName}"`,
+        metadata: {
+          documentId,
+          documentName,
+          linkId: link.linkId,
+          linkRecordId: link.id,
+          visitId: row.id,
+          visitorEmail: body.visitorEmail ?? null,
+          visitorName: body.visitorName ?? null,
+        },
+        title: 'Someone viewed your document',
+        type: 'document_viewed',
+        userId: notificationUserId,
+      });
+    }
 
     return NextResponse.json(
       {

@@ -4,6 +4,7 @@ import {
   brandSettings,
   documentLinks,
   documents,
+  notifications,
   signatures,
   spaces,
   visits,
@@ -13,6 +14,7 @@ import { getResolvedDocumentPreviewState } from '@/lib/viewer';
 type BrandSettingsRow = InferSelectModel<typeof brandSettings>;
 type DocumentLinkRow = InferSelectModel<typeof documentLinks>;
 type DocumentRow = InferSelectModel<typeof documents>;
+type NotificationRow = InferSelectModel<typeof notifications>;
 type SignatureRow = InferSelectModel<typeof signatures>;
 type SpaceRow = InferSelectModel<typeof spaces>;
 type VisitRow = InferSelectModel<typeof visits>;
@@ -154,6 +156,19 @@ export function serializeVisit(row: VisitRow) {
     signed_nda: row.signedNda ?? false,
     visitor_email: row.visitorEmail,
     visitor_name: row.visitorName,
+  };
+}
+
+export function serializeNotification(row: NotificationRow) {
+  return {
+    created_at: row.createdAt?.toISOString() ?? null,
+    id: row.id,
+    message: row.message,
+    metadata: row.metadata ?? null,
+    read: row.read ?? false,
+    title: row.title,
+    type: row.type,
+    user_id: row.userId,
   };
 }
 

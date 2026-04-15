@@ -1,15 +1,16 @@
 import {
   type AnyPgColumn,
-  pgTable,
-  text,
-  uuid,
-  timestamp,
-  boolean,
-  integer,
   bigint,
-  real,
-  uniqueIndex,
+  boolean,
   index,
+  integer,
+  jsonb,
+  pgTable,
+  real,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
@@ -28,6 +29,7 @@ export const users = pgTable('users', {
 export const usersRelations = relations(users, ({ many, one }) => ({
   documents: many(documents),
   documentLinks: many(documentLinks),
+  notifications: many(notifications),
   spaces: many(spaces),
   folders: many(folders),
   brandSettings: one(brandSettings),
@@ -241,6 +243,27 @@ export const pageViews = pgTable('page_views', {
 export const pageViewsRelations = relations(pageViews, ({ one }) => ({
   visit: one(visits, { fields: [pageViews.visitId], references: [visits.id] }),
   document: one(documents, { fields: [pageViews.documentId], references: [documents.id] }),
+}));
+
+// ─── Notifications ──────────────────────────────────────────────────────────
+
+export const notifications = pgTable('notifications', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  type: text('type').notNull(),
+  title: text('title').notNull(),
+  message: text('message').notNull(),
+  read: boolean('read').notNull().default(false),
+  metadata: jsonb('metadata').$type<Record<string, string | number | boolean | null> | null>(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+}, (t) => [
+  index('notifications_user_id_idx').on(t.userId),
+  index('notifications_read_idx').on(t.read),
+  index('notifications_created_at_idx').on(t.createdAt),
+]);
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, { fields: [notifications.userId], references: [users.id] }),
 }));
 
 // ─── NDA Signatures ─────────────────────────────────────────────────────────
