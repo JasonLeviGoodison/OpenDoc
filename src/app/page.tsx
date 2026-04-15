@@ -95,7 +95,7 @@ function CostCalculator() {
   const plan = DOCSEND_PLANS[planIndex];
   const docsendAnnual = plan.calc(seats);
   const docsendTotal = docsendAnnual * years;
-  const opendocTotal = 250;
+  const opendocTotal = 99;
   const saved = docsendTotal - opendocTotal;
 
   return (
@@ -109,7 +109,7 @@ function CostCalculator() {
         </h2>
         <p className="text-muted-foreground text-base max-w-lg mb-12">
           OpenDoc supports teams of up to 5 — perfect for early-stage startups. Adjust your team
-          size and see the real cost of DocSend vs a single OpenDoc payment.
+          size and see the real cost of DocSend vs the $99 early-access lifetime deal.
         </p>
 
         <div className="grid lg:grid-cols-2 gap-8">
@@ -213,9 +213,9 @@ function CostCalculator() {
               <div className="flex items-center justify-between pb-6 border-b border-border">
                 <div>
                   <p className="text-sm text-muted-foreground">OpenDoc</p>
-                  <p className="text-xs text-muted">Lifetime &middot; up to 5 users</p>
+                  <p className="text-xs text-muted">Early access lifetime &middot; up to 5 users</p>
                 </div>
-                <p className="text-2xl font-extrabold text-accent tabular-nums">$250</p>
+                <p className="text-2xl font-extrabold text-accent tabular-nums">$99</p>
               </div>
 
               <div className="flex items-center justify-between">
@@ -302,13 +302,14 @@ export default function LandingPage() {
             <p className="text-lg text-muted-foreground max-w-lg mb-8 leading-relaxed">
               The DocSend alternative built for startup teams of up to 5. Send decks, manage data
               rooms, track investor engagement — with gated downloads, watermarking, and
-              page-level analytics. Pay once, own it forever.
+              page-level analytics. Secure the $99 lifetime early-access deal or start with the
+              $30/month Everything plan.
             </p>
 
             <div className="flex items-center gap-3 flex-wrap">
               <Link href="/sign-up">
                 <Button size="lg">
-                  Get lifetime access — $250
+                  Get early access — $99 lifetime
                   <ArrowRight size={16} />
                 </Button>
               </Link>
@@ -325,9 +326,9 @@ export default function LandingPage() {
             </div>
 
             <div className="flex items-center gap-8 mt-10 text-sm text-muted">
-              <span>One-time $250</span>
+              <span>Early access $99 lifetime</span>
+              <span>Everything plan $30/mo</span>
               <span>Up to 5 users</span>
-              <span>Open source</span>
             </div>
           </div>
 
@@ -417,7 +418,7 @@ export default function LandingPage() {
               },
               {
                 title: "Need enterprise scale?",
-                desc: "OpenDoc is open source. Self-host it on your own infrastructure with no user limits, no feature restrictions, and full control. The $250 hosted plan is for startup teams of up to 5.",
+                desc: "OpenDoc is open source. Self-host it on your own infrastructure with no user limits, no feature restrictions, and full control. The hosted plans are built for startup teams of up to 5, with a $99 early-access lifetime deal and a $30/month Everything option.",
               },
             ].map((item) => (
               <div key={item.title} className="border-b border-border pb-6 last:border-0 last:pb-0">
@@ -436,11 +437,12 @@ export default function LandingPage() {
             Why switch
           </p>
           <h2 className="text-3xl font-extrabold tracking-tight mb-4">
-            The core document-sharing stack. None of the monthly bill.
+            The core document-sharing stack without enterprise-seat pricing.
           </h2>
           <p className="text-muted-foreground text-base max-w-2xl mb-16">
             DocSend costs $45–$150/month per user and locks advanced features behind expensive
-            tiers. OpenDoc gives you everything for a single $250 lifetime payment.
+            tiers. OpenDoc gives you everything for a $99 early-access lifetime deal or $30/month
+            on the Everything plan.
           </p>
 
           <div className="grid lg:grid-cols-2 gap-6">
@@ -451,7 +453,12 @@ export default function LandingPage() {
                   <span className="text-accent font-extrabold text-lg">O</span>
                   <span className="font-bold text-foreground">OpenDoc</span>
                 </div>
-                <span className="text-sm font-bold text-accent tabular-nums">$250 once</span>
+                <div className="text-right">
+                  <span className="text-sm font-bold text-accent tabular-nums">$99 once</span>
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-accent/80">
+                    Early access
+                  </p>
+                </div>
               </div>
               <ul className="space-y-3">
                 {[
@@ -593,30 +600,40 @@ export default function LandingPage() {
       {/* Pricing — Ultracode-style split layout */}
       <section className="py-24 px-6 border-t border-border">
         <div className="max-w-6xl mx-auto">
-          <div className="grid lg:grid-cols-2 rounded-2xl overflow-hidden border border-border">
-            {/* Left — dark side */}
-            <div className="bg-background p-10 lg:p-14 flex flex-col justify-between">
+          <div className="grid lg:grid-cols-[0.92fr_1.08fr] rounded-2xl overflow-hidden border border-border bg-card">
+            {/* Left — context */}
+            <div className="bg-background p-10 lg:p-14 flex flex-col justify-between border-b border-border lg:border-b-0 lg:border-r">
               <div>
                 <p className="text-xs font-bold text-accent uppercase tracking-widest mb-6">
-                  Limited Offer
+                  Pricing
                 </p>
                 <h2 className="text-4xl lg:text-5xl font-extrabold tracking-tight mb-6 leading-[1.1]">
-                  Lifetime
+                  Lock in lifetime
                   <br />
-                  Access
+                  pricing now
                 </h2>
                 <p className="text-muted-foreground text-base leading-relaxed mb-10 max-w-md">
-                  While you&apos;re paying DocSend $150/month, your competitors are switching to
-                  OpenDoc. One payment. Core sharing, analytics, and access controls. Forever.
+                  Early access is open now. Choose the one-time founder deal if you want the best
+                  value, or start with the recurring Everything plan if monthly billing fits your
+                  workflow better.
                 </p>
 
-                <ul className="space-y-4 mb-12">
+                <div className="rounded-2xl border border-accent/30 bg-accent-muted p-5 mb-10">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-accent mb-2">
+                    Early Access Pricing
+                  </p>
+                  <p className="text-sm font-medium text-foreground">
+                    Price will increase after early access period.
+                  </p>
+                </div>
+
+                <ul className="space-y-4">
                   {[
                     "Up to 5 team members",
                     "Page-by-page analytics and watermarking",
                     "Virtual data rooms and NDA capture",
                     "Custom branding on all shared links",
-                    "Every future update included",
+                    "Lifetime plan includes every future update",
                   ].map((item) => (
                     <li key={item} className="flex items-start gap-3 text-sm text-muted-foreground">
                       <Check size={16} className="text-accent flex-shrink-0 mt-0.5" />
@@ -627,42 +644,114 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Right — elevated purchase card */}
-            <div className="bg-card-hover p-10 lg:p-14 flex flex-col justify-center">
-              <div className="flex items-baseline gap-2 mb-2">
-                <span className="text-5xl font-extrabold text-foreground tabular-nums">$250</span>
-                <span className="text-lg text-muted-foreground font-medium">USD</span>
-              </div>
-              <p className="text-sm text-muted mb-8">
-                One-time payment &middot; Lifetime access &middot; Up to 5 users
-              </p>
-
-              <div className="space-y-4 mb-8 pb-8 border-b border-border">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">OpenDoc Lifetime Access</span>
-                  <span className="text-foreground font-medium tabular-nums">$250.00</span>
+            {/* Right — plan choices */}
+            <div className="bg-card-hover p-6 sm:p-8 lg:p-10 space-y-5">
+              <div className="rounded-2xl border border-accent/35 bg-accent-muted p-7 shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
+                <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                      <span className="rounded-full border border-accent/40 bg-background px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-accent">
+                        Recommended
+                      </span>
+                      <span className="rounded-full border border-accent/20 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-accent/85">
+                        Early Access Pricing
+                      </span>
+                    </div>
+                    <h3 className="text-2xl font-extrabold tracking-tight text-foreground">
+                      Lifetime Access
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-2 max-w-md leading-relaxed">
+                      One payment for hosted OpenDoc. Best deal if you want to replace DocSend and
+                      stop thinking about recurring software spend.
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">vs DocSend Advanced (annual)</span>
-                  <span className="text-danger line-through tabular-nums">$1,800.00</span>
+
+                <div className="flex items-end gap-3 mb-2">
+                  <span className="text-5xl font-extrabold text-foreground tabular-nums">$99</span>
+                  <span className="text-sm font-medium uppercase tracking-[0.14em] text-muted-foreground pb-2">
+                    one-time
+                  </span>
                 </div>
+                <p className="text-sm font-medium text-accent mb-6">
+                  Price will increase after early access period.
+                </p>
+
+                <div className="space-y-3 mb-8 pb-8 border-b border-border/70">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Hosted OpenDoc lifetime access</span>
+                    <span className="text-foreground font-medium tabular-nums">$99.00</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Equivalent monthly cost after year one</span>
+                    <span className="text-accent font-medium tabular-nums">$0.00</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between mb-8">
+                  <span className="text-muted-foreground font-medium">Due today</span>
+                  <span className="text-2xl font-extrabold text-foreground tabular-nums">
+                    $99.00
+                  </span>
+                </div>
+
+                <Link href="/sign-up" className="block">
+                  <Button size="lg" className="w-full text-base">
+                    Claim $99 lifetime deal
+                    <ArrowRight size={16} />
+                  </Button>
+                </Link>
               </div>
 
-              <div className="flex items-center justify-between mb-10">
-                <span className="text-muted-foreground font-medium">Due today</span>
-                <span className="text-2xl font-extrabold text-foreground tabular-nums">
-                  $250.00
-                </span>
+              <div className="rounded-2xl border border-border bg-background p-7">
+                <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
+                  <div>
+                    <div className="mb-3">
+                      <span className="rounded-full border border-border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                        Recurring Option
+                      </span>
+                    </div>
+                    <h3 className="text-2xl font-extrabold tracking-tight text-foreground">
+                      Everything
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-2 max-w-md leading-relaxed">
+                      Same hosted product with a monthly subscription if you prefer recurring
+                      billing instead of the one-time lifetime deal.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-end gap-3 mb-2">
+                  <span className="text-4xl font-extrabold text-foreground tabular-nums">$30</span>
+                  <span className="text-sm font-medium uppercase tracking-[0.14em] text-muted-foreground pb-2">
+                    per month
+                  </span>
+                </div>
+                <p className="text-sm text-muted mb-6">
+                  Recurring subscription for teams that want lower upfront cost.
+                </p>
+
+                <div className="space-y-3 mb-8 pb-8 border-b border-border">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Everything plan</span>
+                    <span className="text-foreground font-medium tabular-nums">$30.00/mo</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Annual equivalent</span>
+                    <span className="text-foreground font-medium tabular-nums">$360.00</span>
+                  </div>
+                </div>
+
+                <Link href="/sign-up" className="block">
+                  <Button size="lg" variant="outline" className="w-full text-base">
+                    Start Everything plan
+                    <ArrowRight size={16} />
+                  </Button>
+                </Link>
               </div>
 
-              <Link href="/sign-up" className="block">
-                <Button size="lg" className="w-full text-base">
-                  Get lifetime access
-                  <ArrowRight size={16} />
-                </Button>
-              </Link>
-              <p className="text-xs text-muted text-center mt-4">
-                30-day money-back guarantee &middot; Instant access
+              <p className="text-xs text-muted text-center">
+                30-day money-back guarantee &middot; Instant access on both plans
               </p>
             </div>
           </div>
