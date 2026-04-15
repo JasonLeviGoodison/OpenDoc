@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { FileText, Grid3X3, List, Plus, Search, Trash2 } from 'lucide-react';
+import { AlertTriangle, FileText, Grid3X3, List, Plus, Search, Trash2 } from 'lucide-react';
 
 import { Header } from '@/components/dashboard/header';
 import { UploadModal } from '@/components/documents/upload-modal';
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
+import { Modal } from '@/components/ui/modal';
 import { apiFetchJson } from '@/lib/api-client';
 import { supabase } from '@/lib/supabase';
 import type { Document } from '@/lib/types';
@@ -33,6 +34,9 @@ export default function DocumentsPage() {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [deleteTarget, setDeleteTarget] = useState<Document | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   const loadDocuments = useCallback(async () => {
     if (!userId) {
@@ -102,11 +106,21 @@ export default function DocumentsPage() {
     await loadDocuments();
   }
 
-  async function deleteDocument(id: string) {
-    await apiFetchJson<{ success: boolean }>(`/api/documents/${id}`, {
-      method: 'DELETE',
-    });
-    setDocuments((currentDocuments) => currentDocuments.filter((document) => document.id !== id));
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      await apiFetchJson<{ success: boolean }>(`/api/documents/${deleteTarget.id}`, {
+        method: 'DELETE',
+      });
+      setDocuments((currentDocuments) => currentDocuments.filter((d) => d.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch {
+      setDeleteError('Failed to delete document. Please try again.');
+    } finally {
+      setDeleting(false);
+    }
   }
 
   const filteredDocuments = documents.filter((document) =>
@@ -192,6 +206,15 @@ export default function DocumentsPage() {
                     <span className="absolute top-2.5 right-2.5 text-[10px] font-bold text-muted uppercase tracking-wider">
                       {document.file_type}
                     </span>
+                    <button
+                      className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md bg-card hover:bg-danger/10 text-muted hover:text-danger border border-transparent hover:border-danger/20"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        setDeleteTarget(document);
+                      }}
+                    >
+                      <Trash2 size={13} />
+                    </button>
                   </div>
                   <div className="p-4">
                     <h3 className="text-sm font-semibold text-foreground truncate group-hover:text-accent transition-colors">
@@ -234,10 +257,10 @@ export default function DocumentsPage() {
                     size="sm"
                     onClick={(event) => {
                       event.preventDefault();
-                      void deleteDocument(document.id);
+                      setDeleteTarget(document);
                     }}
                   >
-                    <Trash2 size={14} />
+                    <Trash2 size={14} className="text-danger" />
                   </Button>
                 </Card>
               </Link>
@@ -247,6 +270,33 @@ export default function DocumentsPage() {
       </div>
 
       <UploadModal open={uploadOpen} onOpenChange={setUploadOpen} onUpload={handleUpload} />
+
+      <Modal
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setDeleteError(''); } }}
+        title="Delete document?"
+        description={`"${deleteTarget?.name}" will be soft-deleted and removed from all views. This cannot be undone from the UI.`}
+      >
+        <div className="flex items-start gap-3 rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger mb-5">
+          <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+          <span>Any active share links pointing to this document will stop working.</span>
+        </div>
+        {deleteError && (
+          <div className="flex items-start gap-3 rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger mb-4">
+            <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+            <span>{deleteError}</span>
+          </div>
+        )}
+        <div className="flex justify-end gap-3">
+          <Button variant="secondary" onClick={() => { setDeleteTarget(null); setDeleteError(''); }}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={confirmDelete} loading={deleting}>
+            <Trash2 size={15} />
+            Delete
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { brandSettings, documentLinks, documents, spaceDocuments, spaces } from '@/db/schema';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
 import { getLinkAvailability } from '@/lib/link-access';
 import { serializeDocumentSummary, serializeSpace } from '@/lib/serializers';
 import { RouteError, toErrorResponse } from '@/lib/server/auth';
@@ -18,7 +18,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ link
     let document = null;
 
     if (link.documentId) {
-      const [row] = await db.select().from(documents).where(eq(documents.id, link.documentId));
+      const [row] = await db.select().from(documents).where(
+        and(eq(documents.id, link.documentId), isNull(documents.deletedAt)),
+      );
       document = row ? serializeDocumentSummary(row) : null;
     }
 
@@ -31,7 +33,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ link
         const spaceDocumentRows = await db
           .select({ document: documents })
           .from(spaceDocuments)
-          .innerJoin(documents, eq(spaceDocuments.documentId, documents.id))
+          .innerJoin(documents, and(eq(spaceDocuments.documentId, documents.id), isNull(documents.deletedAt)))
           .where(eq(spaceDocuments.spaceId, link.spaceId))
           .orderBy(asc(spaceDocuments.orderIndex));
 

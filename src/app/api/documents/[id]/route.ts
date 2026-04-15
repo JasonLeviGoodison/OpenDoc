@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { documents } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, isNull } from 'drizzle-orm';
 import { serializeDocument } from '@/lib/serializers';
 import { requireUserId, RouteError, toErrorResponse } from '@/lib/server/auth';
 import { parseDocumentPatchBody, ValidationError } from '@/lib/validators';
@@ -14,7 +14,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const [row] = await db
       .select()
       .from(documents)
-      .where(and(eq(documents.id, id), eq(documents.userId, userId)));
+      .where(and(eq(documents.id, id), eq(documents.userId, userId), isNull(documents.deletedAt)));
 
     if (!row) {
       throw new RouteError('Not found', 404);
@@ -47,7 +47,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         ...(updates.name !== undefined ? { name: updates.name } : {}),
         updatedAt: new Date(),
       })
-      .where(and(eq(documents.id, id), eq(documents.userId, userId)))
+      .where(and(eq(documents.id, id), eq(documents.userId, userId), isNull(documents.deletedAt)))
       .returning();
 
     if (!row) {
@@ -66,8 +66,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const { id } = await params;
 
     const [row] = await db
-      .delete(documents)
-      .where(and(eq(documents.id, id), eq(documents.userId, userId)))
+      .update(documents)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(documents.id, id), eq(documents.userId, userId), isNull(documents.deletedAt)))
       .returning({ id: documents.id });
 
     if (!row) {

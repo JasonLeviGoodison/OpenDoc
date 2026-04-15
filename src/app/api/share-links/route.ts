@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { documentLinks, documents, spaces } from '@/db/schema';
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
       const [document] = await db
         .select({ id: documents.id })
         .from(documents)
-        .where(and(eq(documents.id, body.documentId), eq(documents.userId, userId)));
+        .where(and(eq(documents.id, body.documentId), eq(documents.userId, userId), isNull(documents.deletedAt)));
 
       if (!document) {
         throw new RouteError('Document not found.', 404);
