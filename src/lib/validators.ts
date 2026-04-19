@@ -188,7 +188,6 @@ export function parseSpaceCreateBody(body: unknown) {
 export function parseShareLinkBody(body: unknown) {
   const record = asObject(body);
   const requirePassword = optionalBoolean(record.require_password, false);
-  const requireNda = optionalBoolean(record.require_nda, false);
   const password = optionalString(record.password, 'password', { maxLength: 128 });
   const documentId = optionalString(record.document_id, 'document_id', { maxLength: 64 });
   const spaceId = optionalString(record.space_id, 'space_id', { maxLength: 64 });
@@ -205,12 +204,6 @@ export function parseShareLinkBody(body: unknown) {
     throw new ValidationError('Passwords must be at least 8 characters long.');
   }
 
-  const ndaText = optionalString(record.nda_text, 'nda_text', { maxLength: 5000 });
-
-  if (requireNda && !ndaText) {
-    throw new ValidationError('NDA text is required when NDA gating is enabled.');
-  }
-
   return {
     allowDownload: optionalBoolean(record.allow_download, false),
     allowedDomains: stringArray(record.allowed_domains, 'allowed_domains'),
@@ -221,10 +214,8 @@ export function parseShareLinkBody(body: unknown) {
     enableWatermark: optionalBoolean(record.enable_watermark, false),
     expiresAt: optionalDateString(record.expires_at, 'expires_at'),
     name: optionalString(record.name, 'name', { maxLength: 120 }) ?? 'Default Link',
-    ndaText,
     password,
     requireEmail: optionalBoolean(record.require_email, true),
-    requireNda,
     requirePassword,
     spaceId,
     watermarkText: optionalString(record.watermark_text, 'watermark_text', { maxLength: 120 }),
@@ -247,7 +238,6 @@ export function parseVisitCreateBody(body: unknown) {
 
   return {
     documentId: optionalString(record.document_id, 'document_id', { maxLength: 64 }),
-    ndaAccepted: optionalBoolean(record.nda_accepted, false),
     visitorEmail: optionalString(record.visitor_email, 'visitor_email', { maxLength: 320 }),
     visitorName: optionalString(record.visitor_name, 'visitor_name', { maxLength: 120 }),
   };

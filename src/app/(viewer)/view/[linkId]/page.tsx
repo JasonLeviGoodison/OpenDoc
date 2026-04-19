@@ -5,13 +5,11 @@ import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
 import {
   AlertTriangle,
-  Check,
   ChevronLeft,
   ChevronRight,
   Download,
   Lock,
   Mail,
-  Shield,
   X,
   ZoomIn,
   ZoomOut,
@@ -86,15 +84,13 @@ interface LinkData {
   link_id: string;
   link_state: 'available' | 'disabled' | 'expired';
   name: string;
-  nda_text: string | null;
   require_email: boolean;
-  require_nda: boolean;
   require_password: boolean;
   space: SharedSpace | null;
   watermark_text: string | null;
 }
 
-type GateType = 'loading' | 'expired' | 'disabled' | 'email' | 'password' | 'nda' | 'viewer';
+type GateType = 'loading' | 'expired' | 'disabled' | 'email' | 'password' | 'viewer';
 
 interface VisitSession {
   id: string;
@@ -127,7 +123,6 @@ export default function ViewerPage() {
   const [zoom, setZoom] = useState(1);
   const [visitId, setVisitId] = useState<string | null>(null);
   const [visitToken, setVisitToken] = useState<string | null>(null);
-  const [ndaAccepted, setNdaAccepted] = useState(false);
   const [pendingDocumentId, setPendingDocumentId] = useState<string | null>(null);
   const [viewerIp, setViewerIp] = useState<string | null>(null);
   const [viewerToken, setViewerToken] = useState<string | null>(null);
@@ -183,7 +178,6 @@ export default function ViewerPage() {
   const startViewing = useCallback(
     async (
       sessionToken: string,
-      acceptedNda: boolean,
       resolvedLinkData?: LinkData,
       requestedDocumentId?: string | null,
     ) => {
@@ -203,7 +197,6 @@ export default function ViewerPage() {
         const visit = await apiFetchJson<VisitSession>('/api/visits', {
           body: JSON.stringify({
             document_id: activeDocumentId,
-            nda_accepted: acceptedNda,
             visitor_email: email || null,
           }),
           headers: {
@@ -227,19 +220,18 @@ export default function ViewerPage() {
   );
 
   const authorizeViewer = useCallback(
-    async (acceptedNda: boolean, resolvedLinkData?: LinkData) => {
+    async (resolvedLinkData?: LinkData) => {
       try {
         const response = await apiFetchJson<{ viewer_token: string }>(`/api/links/${linkId}/access`, {
           body: JSON.stringify({
             email,
-            nda_accepted: acceptedNda,
             password,
           }),
           method: 'POST',
         });
 
         const firstDocument = getViewerDocuments(resolvedLinkData ?? linkData)[0] ?? null;
-        await startViewing(response.viewer_token, acceptedNda, resolvedLinkData, firstDocument?.id ?? null);
+        await startViewing(response.viewer_token, resolvedLinkData, firstDocument?.id ?? null);
       } catch (requestError) {
         setError(requestError instanceof Error ? requestError.message : 'Verification failed.');
       }
@@ -291,12 +283,7 @@ export default function ViewerPage() {
         return;
       }
 
-      if (data.require_nda) {
-        setGate('nda');
-        return;
-      }
-
-      await authorizeViewer(false, data);
+      await authorizeViewer(data);
     } catch (requestError) {
       console.error('Failed to load link', requestError);
       setGate('disabled');
@@ -359,12 +346,7 @@ export default function ViewerPage() {
       return;
     }
 
-    if (linkData?.require_nda) {
-      setGate('nda');
-      return;
-    }
-
-    await authorizeViewer(false);
+    await authorizeViewer();
   }
 
   async function handlePasswordSubmit(event: React.FormEvent) {
@@ -376,17 +358,7 @@ export default function ViewerPage() {
       return;
     }
 
-    if (linkData?.require_nda) {
-      setGate('nda');
-      return;
-    }
-
-    await authorizeViewer(false);
-  }
-
-  async function handleNdaAccept() {
-    setError('');
-    await authorizeViewer(true);
+    await authorizeViewer();
   }
 
   const flushPageView = useCallback((keepalive = false) => {
@@ -475,12 +447,12 @@ export default function ViewerPage() {
           return;
         }
 
-        await startViewing(viewerToken, ndaAccepted, linkData ?? undefined, documentId);
+        await startViewing(viewerToken, linkData ?? undefined, documentId);
       } finally {
         setPendingDocumentId(null);
       }
     },
-    [currentDocumentId, finalizeVisitTracking, linkData, ndaAccepted, startViewing, viewerToken],
+    [currentDocumentId, finalizeVisitTracking, linkData, startViewing, viewerToken],
   );
 
   useEffect(() => {
@@ -664,41 +636,6 @@ export default function ViewerPage() {
             Unlock
           </Button>
         </form>
-      </GateScreen>
-    );
-  }
-
-  if (gate === 'nda') {
-    return (
-      <GateScreen
-        icon={<Shield size={32} className="text-accent" />}
-        title="NDA Required"
-        description="Please review and accept the agreement before viewing"
-        brandName={linkData?.brand?.company_name}
-        logoUrl={linkData?.brand?.logo_url}
-      >
-        <div className="w-full max-w-lg space-y-4">
-          <div className="bg-card border border-border rounded-lg p-4 max-h-48 overflow-y-auto text-sm text-muted-foreground leading-relaxed">
-            {linkData?.nda_text || 'Non-Disclosure Agreement text will appear here.'}
-          </div>
-          <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="nda-accept"
-              checked={ndaAccepted}
-              onChange={(event) => setNdaAccepted(event.target.checked)}
-              className="w-4 h-4 rounded accent-accent"
-            />
-            <label htmlFor="nda-accept" className="text-sm text-muted-foreground">
-              I have read and agree to the terms above
-            </label>
-          </div>
-          {error ? <p className="text-sm text-danger">{error}</p> : null}
-          <Button onClick={handleNdaAccept} disabled={!ndaAccepted} className="w-full">
-            <Check size={16} />
-            Accept & Continue
-          </Button>
-        </div>
       </GateScreen>
     );
   }

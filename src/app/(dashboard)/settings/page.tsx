@@ -151,8 +151,8 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Access controls, watermarking, expiration, and NDA capture are configured per link so
-              each document or space can be shared with the right risk profile.
+              Access controls, watermarking, and expiration are configured per link so each
+              document or space can be shared with the right risk profile.
             </p>
             <p className="text-sm text-muted-foreground">
               Viewer access is enforced through the server route layer now, rather than direct

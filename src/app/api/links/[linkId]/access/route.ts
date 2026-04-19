@@ -18,7 +18,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ lin
     const body = await req.json();
     const email = typeof body.email === 'string' ? body.email : '';
     const password = typeof body.password === 'string' ? body.password : '';
-    const ndaAccepted = Boolean(body.nda_accepted);
 
     const [link] = await db.select().from(documentLinks).where(eq(documentLinks.linkId, linkId));
 
@@ -56,10 +55,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ lin
           })
           .where(eq(documentLinks.id, link.id));
       }
-    }
-
-    if (link.requireNda && !ndaAccepted) {
-      throw new RouteError('NDA acceptance is required.', 403);
     }
 
     const viewerToken = createSignedToken({
