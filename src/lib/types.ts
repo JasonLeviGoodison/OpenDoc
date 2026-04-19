@@ -30,8 +30,6 @@ export interface DocumentLink {
   require_email: boolean;
   require_password: boolean;
   password_hash: string | null;
-  require_nda: boolean;
-  nda_text: string | null;
   allow_download: boolean;
   enable_watermark: boolean;
   watermark_text: string | null;
@@ -62,7 +60,6 @@ export interface Visit {
   page_count_viewed: number;
   completion_rate: number;
   downloaded: boolean;
-  signed_nda: boolean;
   created_at: string;
   last_activity_at: string;
 }
@@ -158,17 +155,6 @@ export interface Folder {
   parent_id: string | null;
   created_at: string;
   updated_at: string;
-}
-
-export interface Signature {
-  id: string;
-  visit_id: string;
-  link_id: string;
-  signer_email: string;
-  signer_name: string;
-  signer_ip: string | null;
-  nda_text: string;
-  signed_at: string;
 }
 
 export interface BrandSettings {

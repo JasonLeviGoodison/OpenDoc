@@ -1,6 +1,6 @@
 import { after, NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { documentLinks, documents, notifications, signatures, spaceDocuments, users, visits } from '@/db/schema';
+import { documentLinks, documents, notifications, spaceDocuments, users, visits } from '@/db/schema';
 import { and, desc, eq, gte, isNull, ne, sql } from 'drizzle-orm';
 import { getLinkAvailability, isEmailAuthorized, normalizeEmail } from '@/lib/link-access';
 import { serializeVisit } from '@/lib/serializers';
@@ -163,10 +163,6 @@ export async function POST(req: NextRequest) {
       throw new RouteError('Viewer email is not authorized.', 403);
     }
 
-    if (link.requireNda && !body.ndaAccepted) {
-      throw new RouteError('NDA acceptance is required.', 403);
-    }
-
     let documentId = link.documentId;
 
     if (link.spaceId) {
@@ -225,19 +221,6 @@ export async function POST(req: NextRequest) {
         visitorName: body.visitorName,
       })
       .returning();
-
-    if (link.requireNda) {
-      await db.insert(signatures).values({
-        linkId: link.id,
-        ndaText: link.ndaText ?? '',
-        signerEmail: body.visitorEmail ?? `anonymous+${row.id}@opendoc.invalid`,
-        signerIp: ip || 'unknown',
-        signerName: body.visitorName ?? body.visitorEmail ?? 'Anonymous viewer',
-        visitId: row.id,
-      });
-
-      await db.update(visits).set({ signedNda: true }).where(eq(visits.id, row.id));
-    }
 
     await db
       .update(documentLinks)

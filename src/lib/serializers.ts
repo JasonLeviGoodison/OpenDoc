@@ -5,7 +5,6 @@ import {
   documentLinks,
   documents,
   notifications,
-  signatures,
   spaces,
   visits,
 } from '@/db/schema';
@@ -15,7 +14,6 @@ type BrandSettingsRow = InferSelectModel<typeof brandSettings>;
 type DocumentLinkRow = InferSelectModel<typeof documentLinks>;
 type DocumentRow = InferSelectModel<typeof documents>;
 type NotificationRow = InferSelectModel<typeof notifications>;
-type SignatureRow = InferSelectModel<typeof signatures>;
 type SpaceRow = InferSelectModel<typeof spaces>;
 type VisitRow = InferSelectModel<typeof visits>;
 
@@ -122,10 +120,8 @@ export function serializeDocumentLink(
     last_visited_at: row.lastVisitedAt?.toISOString() ?? null,
     link_id: row.linkId,
     name: row.name,
-    nda_text: row.ndaText,
     password_hash: extras.include_password_hash ? row.passwordHash : undefined,
     require_email: row.requireEmail ?? true,
-    require_nda: row.requireNda ?? false,
     require_password: row.requirePassword ?? false,
     space_id: row.spaceId,
     space_name: extras.space_name ?? undefined,
@@ -153,7 +149,6 @@ export function serializeVisit(row: VisitRow) {
     link_id: row.linkId,
     os: row.os,
     page_count_viewed: row.pageCountViewed ?? 0,
-    signed_nda: row.signedNda ?? false,
     visitor_email: row.visitorEmail,
     visitor_name: row.visitorName,
   };
@@ -172,15 +167,3 @@ export function serializeNotification(row: NotificationRow) {
   };
 }
 
-export function serializeSignature(row: SignatureRow) {
-  return {
-    id: row.id,
-    link_id: row.linkId,
-    nda_text: row.ndaText,
-    signed_at: row.signedAt?.toISOString() ?? null,
-    signer_email: row.signerEmail,
-    signer_ip: row.signerIp,
-    signer_name: row.signerName,
-    visit_id: row.visitId,
-  };
-}

@@ -10,7 +10,6 @@ import {
   BarChart3,
   FolderOpen,
   Settings,
-  PenTool,
   ChevronLeft,
   ChevronRight,
   Code2,
@@ -23,7 +22,6 @@ const navItems = [
   { label: 'Links', href: '/links', icon: Link2 },
   { label: 'Spaces', href: '/spaces', icon: FolderOpen },
   { label: 'Analytics', href: '/analytics', icon: BarChart3 },
-  { label: 'Signatures', href: '/signatures', icon: PenTool },
 ];
 
 const bottomNavItems = [

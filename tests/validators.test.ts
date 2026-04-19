@@ -82,22 +82,13 @@ test('parseShareLinkBody rejects conflicting targets', () => {
   );
 });
 
-test('parseShareLinkBody enforces password and NDA requirements', () => {
+test('parseShareLinkBody enforces password requirements', () => {
   assert.throws(
     () =>
       parseShareLinkBody({
         document_id: 'doc_123',
         password: 'short',
         require_password: true,
-      }),
-    ValidationError,
-  );
-
-  assert.throws(
-    () =>
-      parseShareLinkBody({
-        document_id: 'doc_123',
-        require_nda: true,
       }),
     ValidationError,
   );

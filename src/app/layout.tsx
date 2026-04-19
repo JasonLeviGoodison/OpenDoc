@@ -6,7 +6,7 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'OpenDoc — Secure Document Sharing & Analytics',
   description:
-    'Share documents securely with page-level analytics, access controls, NDA capture, and virtual data rooms.',
+    'Share documents securely with page-level analytics, access controls, and virtual data rooms.',
 };
 
 export default function RootLayout({

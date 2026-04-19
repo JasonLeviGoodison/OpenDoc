@@ -50,8 +50,6 @@ export default function DocumentDetailPage() {
   const [password, setPassword] = useState('');
   const [allowDownload, setAllowDownload] = useState(false);
   const [enableWatermark, setEnableWatermark] = useState(false);
-  const [requireNda, setRequireNda] = useState(false);
-  const [ndaText, setNdaText] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
   const [allowedEmails, setAllowedEmails] = useState('');
   const [blockedEmails, setBlockedEmails] = useState('');
@@ -129,10 +127,8 @@ export default function DocumentDetailPage() {
           enable_watermark: enableWatermark,
           expires_at: expiresAt || null,
           name: linkName || 'Default Link',
-          nda_text: requireNda ? ndaText : null,
           password: requirePassword ? password : null,
           require_email: requireEmail,
-          require_nda: requireNda,
           require_password: requirePassword,
         }),
         method: 'POST',
@@ -155,8 +151,6 @@ export default function DocumentDetailPage() {
     setPassword('');
     setAllowDownload(false);
     setEnableWatermark(false);
-    setRequireNda(false);
-    setNdaText('');
     setExpiresAt('');
     setAllowedEmails('');
     setBlockedEmails('');
@@ -613,32 +607,6 @@ export default function DocumentDetailPage() {
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder="Enter a password"
               />
-            )}
-            <Toggle
-              checked={requireNda}
-              onCheckedChange={setRequireNda}
-              label="Require NDA"
-              description="Viewers must sign an NDA before accessing"
-            />
-            {requireNda && (
-              <div className="space-y-3">
-                <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2.5 text-xs text-warning">
-                  <AlertTriangle size={13} className="mt-0.5 shrink-0" />
-                  <span>
-                    This captures a checkbox acknowledgement only — it is <strong>not</strong> a legally binding
-                    e-signature. Do not use for enforceable contracts without consulting legal counsel.
-                  </span>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">NDA Text</label>
-                  <textarea
-                    value={ndaText}
-                    onChange={(event) => setNdaText(event.target.value)}
-                    className="mt-1.5 w-full bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted resize-none h-24 focus:border-transparent"
-                    placeholder="Enter NDA agreement text..."
-                  />
-                </div>
-              </div>
             )}
           </div>
 

@@ -165,8 +165,6 @@ export const documentLinks = pgTable('document_links', {
   requireEmail: boolean('require_email').default(true),
   requirePassword: boolean('require_password').default(false),
   passwordHash: text('password_hash'),
-  requireNda: boolean('require_nda').default(false),
-  ndaText: text('nda_text'),
   allowDownload: boolean('allow_download').default(false),
   enableWatermark: boolean('enable_watermark').default(false),
   watermarkText: text('watermark_text'),
@@ -190,7 +188,6 @@ export const documentLinksRelations = relations(documentLinks, ({ one, many }) =
   space: one(spaces, { fields: [documentLinks.spaceId], references: [spaces.id] }),
   user: one(users, { fields: [documentLinks.userId], references: [users.id] }),
   visits: many(visits),
-  signatures: many(signatures),
 }));
 
 // ─── Visits / Analytics ─────────────────────────────────────────────────────
@@ -211,7 +208,6 @@ export const visits = pgTable('visits', {
   pageCountViewed: integer('page_count_viewed').default(0),
   completionRate: real('completion_rate').default(0),
   downloaded: boolean('downloaded').default(false),
-  signedNda: boolean('signed_nda').default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   lastActivityAt: timestamp('last_activity_at', { withTimezone: true }).defaultNow(),
 }, (t) => [
@@ -224,7 +220,6 @@ export const visitsRelations = relations(visits, ({ one, many }) => ({
   link: one(documentLinks, { fields: [visits.linkId], references: [documentLinks.id] }),
   document: one(documents, { fields: [visits.documentId], references: [documents.id] }),
   pageViews: many(pageViews),
-  signatures: many(signatures),
 }));
 
 // ─── Page Views ─────────────────────────────────────────────────────────────
@@ -308,22 +303,4 @@ export const subscriptions = pgTable('subscriptions', {
 
 export const subscriptionsRelations = relations(subscriptions, ({ one }) => ({
   user: one(users, { fields: [subscriptions.userId], references: [users.id] }),
-}));
-
-// ─── NDA Signatures ─────────────────────────────────────────────────────────
-
-export const signatures = pgTable('signatures', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  visitId: uuid('visit_id').notNull().references(() => visits.id, { onDelete: 'cascade' }),
-  linkId: uuid('link_id').notNull().references(() => documentLinks.id, { onDelete: 'cascade' }),
-  signerEmail: text('signer_email').notNull(),
-  signerName: text('signer_name').notNull(),
-  signerIp: text('signer_ip'),
-  ndaText: text('nda_text').notNull(),
-  signedAt: timestamp('signed_at', { withTimezone: true }).defaultNow(),
-});
-
-export const signaturesRelations = relations(signatures, ({ one }) => ({
-  visit: one(visits, { fields: [signatures.visitId], references: [visits.id] }),
-  link: one(documentLinks, { fields: [signatures.linkId], references: [documentLinks.id] }),
 }));

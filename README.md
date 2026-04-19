@@ -1,10 +1,10 @@
 # OpenDoc
 
-OpenDoc is an AGPL-licensed document sharing platform for founders, investors, and small teams. It focuses on secure share links, page-level engagement analytics, NDA capture, watermarking, and lightweight virtual data rooms.
+OpenDoc is an AGPL-licensed document sharing platform for founders, investors, and small teams. It focuses on secure share links, page-level engagement analytics, watermarking, and lightweight virtual data rooms.
 
 ## Features
 
-- Secure share links with email, password, expiration, NDA, and download controls
+- Secure share links with email, password, expiration, and download controls
 - Gated public viewer with token-protected document delivery
 - Page-level analytics, visit tracking, and download tracking
 - Dynamic watermark overlays for shared documents

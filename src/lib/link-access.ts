@@ -6,7 +6,6 @@ export interface LinkAccessControls {
   expiresAt?: Date | string | null;
   isActive?: boolean | null;
   requireEmail?: boolean | null;
-  requireNda?: boolean | null;
   requirePassword?: boolean | null;
 }
 

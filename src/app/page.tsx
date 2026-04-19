@@ -8,7 +8,6 @@ import {
   Lock,
   Eye,
   FileText,
-  Zap,
   ArrowRight,
   Shield,
   Mail,
@@ -37,7 +36,7 @@ const features = [
     icon: Lock,
     title: "Granular access control",
     description:
-      "Email verification, password protection, link expiration, domain allow/block lists, and one-click NDA requirements. Control every aspect of who sees what.",
+      "Email verification, password protection, link expiration, and domain allow/block lists. Control every aspect of who sees what.",
   },
   {
     icon: Shield,
@@ -56,12 +55,6 @@ const features = [
     title: "Virtual data rooms",
     description:
       "Bundle multiple documents into branded spaces, share them with a single link, and review engagement across the room.",
-  },
-  {
-    icon: Zap,
-    title: "NDA acknowledgements",
-    description:
-      "Gate access behind NDAs and capture the accepted text, signer identity, IP address, and timestamp before the viewer opens the document.",
   },
 ];
 
@@ -410,7 +403,7 @@ export default function LandingPage() {
               },
               {
                 title: "Data rooms",
-                desc: "Set up a secure data room in minutes. Bundle multiple files behind one share link, add NDA gates, and review the audit trail in one place.",
+                desc: "Set up a secure data room in minutes. Bundle multiple files behind one share link and review the audit trail in one place.",
               },
               {
                 title: "Controlled downloads",
@@ -465,7 +458,6 @@ export default function LandingPage() {
                   "Page-by-page analytics",
                   "Email capture & password protection",
                   "Dynamic watermarking",
-                  "NDA capture & audit trail",
                   "Virtual data rooms",
                   "Allow/block lists",
                   "Custom branding",
@@ -494,7 +486,6 @@ export default function LandingPage() {
                   { text: "Page-by-page analytics", ok: true },
                   { text: "Email capture & password protection", ok: true },
                   { text: "Dynamic watermarking", note: "Advanced plan — $150/mo" },
-                  { text: "One-click NDA", note: "Advanced plan — $150/mo" },
                   { text: "Virtual data rooms", note: "Full VDR plan — $180/mo" },
                   { text: "Allow/block lists", note: "Advanced plan — $150/mo" },
                   { text: "Custom branding", note: "Standard plan — $45/mo" },
@@ -576,7 +567,7 @@ export default function LandingPage() {
               {
                 step: "02",
                 title: "Configure & share",
-                desc: "Set email capture, password, NDA, watermarking, and expiration. Generate a unique link.",
+                desc: "Set email capture, password, watermarking, and expiration. Generate a unique link.",
               },
               {
                 step: "03",
@@ -631,7 +622,7 @@ export default function LandingPage() {
                   {[
                     "Up to 5 team members",
                     "Page-by-page analytics and watermarking",
-                    "Virtual data rooms and NDA capture",
+                    "Virtual data rooms",
                     "Custom branding on all shared links",
                     "Lifetime plan includes every future update",
                   ].map((item) => (
